@@ -39,7 +39,8 @@ enum TextPlanParser {
     }
     private enum ParseError: Error { case invalid(String) }
 
-    static func parse(_ input: String, reference: Date = Date()) -> TextPlanResult {
+    static func parse(_ input: String, reference: Date = Date(), useEnglishAdapter: Bool = true) -> TextPlanResult {
+        if useEnglishAdapter && EnglishTextPlanParser.accepts(input) { return EnglishTextPlanParser.parse(input, reference: reference) }
         var result = TextPlanResult()
         guard input.count <= 20_000 else {
             result.issues = ["文字过长，请分成每次不超过 20,000 字的几段。"]
@@ -100,7 +101,10 @@ enum TextPlanParser {
             }
         }
 
+        let estimateRanges = matches(number + #"(?:\s*[-—–~～至到]\s*"# + number + #")?\s*(?:个?工作日|天|日|周|星期|小时)"#, in: text).map { $0.match.range }
         let tokens = matches(datePattern, in: text).filter { token in
+            // Decimal estimates (1.5 days, 2.0–3.0 days) must not become month/day dates.
+            if token.text.contains("."), estimateRanges.contains(where: { NSIntersectionRange($0, token.match.range).length == token.match.range.length }) { return false }
             // “持续三日” is a duration; a bare “三日” is a calendar date.
             let prefix = (text as NSString).substring(to: token.match.range.location)
             let isDayOnly = first(#"^"# + digits + #"日$"#, in: token.text) != nil

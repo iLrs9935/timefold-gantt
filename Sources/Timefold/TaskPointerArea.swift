@@ -15,7 +15,7 @@ struct TaskPointerArea: NSViewRepresentable {
     var change: (TaskDragMode, CGFloat) -> Void = { _, _ in }
     var finish: () -> Void = {}
     var rangeDrag: ((CGFloat) -> Void)? = nil
-    var help = "单击选择；⌘点击多选；Shift点击连续选择；双击编辑任务信息"
+    var help = L("单击选择；⌘点击多选；Shift点击连续选择；双击编辑任务信息")
 
     final class PointerView: NSView {
         var configuration: TaskPointerArea!

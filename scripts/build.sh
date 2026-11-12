@@ -10,5 +10,8 @@ cp Resources/Info.plist "$TASK_APP/Contents/Info.plist"
 if [[ -f Resources/AppIcon.icns ]]; then
   cp Resources/AppIcon.icns "$TASK_APP/Contents/Resources/AppIcon.icns"
 fi
+for TASK_LANG in en zh-Hans; do
+  ditto "Resources/${TASK_LANG}.lproj" "$TASK_APP/Contents/Resources/${TASK_LANG}.lproj"
+done
 codesign --force --sign - "$TASK_APP"
 print "已生成：$TASK_APP"

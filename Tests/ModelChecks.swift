@@ -169,6 +169,7 @@ struct ModelChecks {
         try expect(placeholderReopened.plans.count == 2 && placeholderReopened.plans.contains { $0.project.name == "已使用的新计划" }, "用户已修改的空计划不得被恢复操作移除")
         print("✓ 计划删除、撤销、重启恢复与删除最后一项")
         try checkColloquialPlans()
-        print("全部 19 组检查通过。")
+        try checkEnglishPlans()
+        print("全部 20 组检查通过。")
     }
 }

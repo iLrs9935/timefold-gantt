@@ -6,11 +6,11 @@ enum TaskTint: String, Codable, CaseIterable, Identifiable {
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .mint: return "薄荷"
-        case .blue: return "湖蓝"
-        case .peach: return "珊瑚"
-        case .lavender: return "紫藤"
-        case .gold: return "麦黄"
+        case .mint: return L("薄荷")
+        case .blue: return L("湖蓝")
+        case .peach: return L("珊瑚")
+        case .lavender: return L("紫藤")
+        case .gold: return L("麦黄")
         }
     }
     var color: Color {
@@ -55,7 +55,7 @@ struct GanttTask: Identifiable, Codable, Equatable {
 }
 
 struct Project: Codable, Equatable {
-    var name = "我的项目"
+    var name = L("我的项目")
     var tasks: [GanttTask] = []
     var isExample = false
     var progress: Double {
@@ -67,12 +67,12 @@ struct Project: Codable, Equatable {
 
     static func example(today: Date = Date()) -> Project {
         let monday = Day.weekStart(today)
-        return Project(name: "产品上线计划", tasks: [
-            GanttTask(title: "需求与调研", start: Day.add(-1, to: monday), end: Day.add(2, to: monday), progress: 1, tint: .mint, notes: "梳理需求，确定本次上线的核心范围。"),
-            GanttTask(title: "界面设计", start: Day.add(1, to: monday), end: Day.add(5, to: monday), progress: 0.65, tint: .blue),
-            GanttTask(title: "功能开发", start: Day.add(3, to: monday), end: Day.add(10, to: monday), progress: 0.3, tint: .lavender),
-            GanttTask(title: "测试与打磨", start: Day.add(8, to: monday), end: Day.add(12, to: monday), progress: 0, tint: .peach),
-            GanttTask(title: "正式上线", start: Day.add(13, to: monday), end: Day.add(13, to: monday), progress: 0, tint: .gold)
+        return Project(name: L("产品上线计划"), tasks: [
+            GanttTask(title: L("需求与调研"), start: Day.add(-1, to: monday), end: Day.add(2, to: monday), progress: 1, tint: .mint, notes: L("梳理需求，确定本次上线的核心范围。")),
+            GanttTask(title: L("界面设计"), start: Day.add(1, to: monday), end: Day.add(5, to: monday), progress: 0.65, tint: .blue),
+            GanttTask(title: L("功能开发"), start: Day.add(3, to: monday), end: Day.add(10, to: monday), progress: 0.3, tint: .lavender),
+            GanttTask(title: L("测试与打磨"), start: Day.add(8, to: monday), end: Day.add(12, to: monday), progress: 0, tint: .peach),
+            GanttTask(title: L("正式上线"), start: Day.add(13, to: monday), end: Day.add(13, to: monday), progress: 0, tint: .gold)
         ], isExample: true)
     }
 }
@@ -99,14 +99,19 @@ enum Day {
     static func isToday(_ date: Date) -> Bool { calendar.isDateInToday(date) }
     static func number(_ date: Date) -> String { String(calendar.component(.day, from: date)) }
     static func weekday(_ date: Date) -> String {
-        ["日", "一", "二", "三", "四", "五", "六"][calendar.component(.weekday, from: date) - 1]
+        let names = AppLanguage.shared.isEnglish ? ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"] : ["日", "一", "二", "三", "四", "五", "六"]
+        return names[calendar.component(.weekday, from: date) - 1]
     }
     static func short(_ date: Date) -> String {
         "\(calendar.component(.month, from: date)).\(String(format: "%02d", calendar.component(.day, from: date)))"
     }
     static func range(_ start: Date, days: Int) -> String {
+        if AppLanguage.shared.isEnglish {
+            let formatter = DateFormatter(); formatter.locale = Locale(identifier: "en_US"); formatter.dateFormat = "MMM d"
+            return formatter.string(from: start) + " – " + formatter.string(from: add(days - 1, to: start))
+        }
         let end = add(days - 1, to: start)
-        return "\(calendar.component(.month, from: start)) 月 \(number(start)) 日 — \(calendar.component(.month, from: end)) 月 \(number(end)) 日"
+        return L("\(calendar.component(.month, from: start)) 月 \(number(start)) 日 — \(calendar.component(.month, from: end)) 月 \(number(end)) 日")
     }
 }
 

@@ -9,7 +9,7 @@ enum GlobalShortcut: String, CaseIterable, Identifiable {
         case .controlOptionG: return "⌃⌥G"
         case .commandOptionG: return "⌥⌘G"
         case .controlOptionSpace: return "⌃⌥Space"
-        case .disabled: return "关闭快捷键"
+        case .disabled: return L("关闭快捷键")
         }
     }
     var keyCode: UInt32 { UInt32(self == .controlOptionSpace ? kVK_Space : kVK_ANSI_G) }

@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct TextPlanEditor: View {
+    @ObservedObject private var appLanguage = AppLanguage.shared
     @Environment(\.dismiss) private var dismiss
     var onAdd: ([GanttTask]) -> String?
     @State private var input = ""
@@ -23,32 +24,32 @@ struct TextPlanEditor: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Label("文字排期", systemImage: "sparkles").font(.system(size: 21, weight: .semibold))
-                    Text("把要做的事写下来，确认后一起放进甘特图。")
+                    Label(L("文字排期"), systemImage: "sparkles").font(.system(size: 21, weight: .semibold))
+                    Text(L("把要做的事写下来，确认后一起放进甘特图。"))
                         .font(.system(size: 11)).foregroundStyle(Palette.muted)
                 }
                 Spacer()
-                IconButton(symbol: "xmark", help: "取消文字排期") { dismiss() }
+                IconButton(symbol: "xmark", help: L("取消文字排期")) { dismiss() }
             }
             VStack(alignment: .leading, spacing: 8) {
                 ZStack(alignment: .topLeading) {
                     TextEditor(text: $input).font(.system(size: 13)).scrollContentBackground(.hidden)
-                        .focused($inputFocused).accessibilityLabel("排期描述")
+                        .focused($inputFocused).accessibilityLabel(L("排期描述"))
                     if input.isEmpty {
-                        Text("明早报销两三天，然后整理报告一天\n周五下午5点前提交清单，预计两天")
+                        Text(L("明早报销两三天，然后整理报告一天\n周五下午5点前提交清单，预计两天"))
                             .font(.system(size: 13)).foregroundStyle(Palette.muted.opacity(0.75))
                             .padding(.top, 2).padding(.leading, 5).allowsHitTesting(false)
                     }
                 }.frame(height: 105).padding(10).background(Palette.inset, in: RoundedRectangle(cornerRadius: 10))
                 HStack {
-                    Text("可写多项任务与先后顺序 · 在此 Mac 解析")
+                    Text(L("可写多项任务与先后顺序 · 在此 Mac 解析"))
                         .font(.system(size: 10)).foregroundStyle(Palette.muted)
                     Spacer()
-                    Button("试试示例") {
-                        input = "明早报销两三天，然后整理报告一天\n周五下午5点前提交清单，预计两天\n下月初核对收据，半天"
+                    Button(L("试试示例")) {
+                        input = L("明早报销两三天，然后整理报告一天\n周五下午5点前提交清单，预计两天\n下月初核对收据，半天")
                         parse()
                     }.buttonStyle(.plain).foregroundStyle(Palette.accent)
-                    Button(hasParsed ? "重新解析" : "解析文字", action: parse)
+                    Button(hasParsed ? L("重新解析") : L("解析文字"), action: parse)
                         .keyboardShortcut(.return, modifiers: .command)
                         .disabled(input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
@@ -56,12 +57,12 @@ struct TextPlanEditor: View {
 
             if hasParsed {
                 HStack {
-                    Text("任务预览 · \(result.drafts.count) 项").font(.system(size: 12, weight: .semibold))
+                    Text(L("任务预览 · \(result.drafts.count) 项")).font(.system(size: 12, weight: .semibold))
                     Spacer()
-                    Text("可修改名称，或点“调整”编辑全部信息").font(.system(size: 10)).foregroundStyle(Palette.muted)
+                    Text(L("可修改名称，或点“调整”编辑全部信息")).font(.system(size: 10)).foregroundStyle(Palette.muted)
                 }
                 if stale {
-                    Label("文字已修改，请重新解析后再添加。", systemImage: "arrow.clockwise")
+                    Label(L("文字已修改，请重新解析后再添加。"), systemImage: "arrow.clockwise")
                         .font(.system(size: 11)).foregroundStyle(Color(hex: 0xB18843))
                 }
                 ScrollView {
@@ -73,15 +74,15 @@ struct TextPlanEditor: View {
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         if result.drafts.isEmpty && result.issues.isEmpty {
-                            Text("请补上要做的事情，例如“明天整理报告，持续一天”。")
+                            Text(L("请补上要做的事情，例如“明天整理报告，持续一天”。"))
                                 .foregroundStyle(Palette.muted).font(.system(size: 12)).padding(.vertical, 20)
                         }
                     }.frame(maxWidth: .infinity, alignment: .leading)
                 }.frame(height: 255)
             } else {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("支持明早、下月初、两三天、具体日期和截止日期。“然后、接着、最后”会接在上一项结束后的次日。")
-                    Text("截止默认包含当天；时刻保存在备注中。日期倒推、时长取整和缺省值都会在预览中提示，可手动调整。")
+                    Text(L("支持明早、下月初、两三天、具体日期和截止日期。“然后、接着、最后”会接在上一项结束后的次日。"))
+                    Text(L("截止默认包含当天；时刻保存在备注中。日期倒推、时长取整和缺省值都会在预览中提示，可手动调整。"))
                 }.font(.system(size: 11)).foregroundStyle(Palette.muted).lineSpacing(4)
                     .frame(maxWidth: .infinity, minHeight: 68, alignment: .leading)
             }
@@ -90,11 +91,11 @@ struct TextPlanEditor: View {
                     .font(.system(size: 11)).foregroundStyle(Color(hex: 0xC47B65))
             }
             HStack {
-                Text(hasParsed ? "已勾选 \(tasks.count) 项 · 添加后可整批撤销" : "⌘↩ 解析文字 · 确认前不会保存任务")
+                Text(hasParsed ? L("已勾选 \(tasks.count) 项 · 添加后可整批撤销") : L("⌘↩ 解析文字 · 确认前不会保存任务"))
                     .font(.system(size: 10)).foregroundStyle(Palette.muted)
                 Spacer()
-                Button("取消") { dismiss() }.keyboardShortcut(.cancelAction)
-                Button("添加 \(tasks.count) 项任务") {
+                Button(L("取消")) { dismiss() }.keyboardShortcut(.cancelAction)
+                Button(L("添加 \(tasks.count) 项任务")) {
                     guard canAdd else { return }
                     saveError = onAdd(tasks)
                     if saveError == nil { dismiss() }
@@ -103,12 +104,13 @@ struct TextPlanEditor: View {
         }
         .padding(26).frame(width: 620)
         .background(Palette.surface).foregroundStyle(Palette.text).font(.system(size: 12))
+        .environment(\.locale, appLanguage.locale)
         .onAppear { inputFocused = true }
         .sheet(item: $editingDraft) { task in
             TaskEditor(task: task, isNew: false, onSave: { edited in
                 if let index = result.drafts.firstIndex(where: { $0.id == edited.id }) {
                     result.drafts[index].task = edited.normalized()
-                    result.drafts[index].warnings = ["已手动调整，请以上方信息为准。"]
+                    result.drafts[index].warnings = [L("已手动调整，请以上方信息为准。")]
                 }
             }, onDelete: { result.drafts.removeAll { $0.id == task.id } })
         }
@@ -118,26 +120,26 @@ struct TextPlanEditor: View {
         let value = draft.wrappedValue
         let task = value.task
         return HStack(alignment: .top, spacing: 10) {
-            Toggle("添加 \(task.title)", isOn: draft.included).labelsHidden().toggleStyle(.checkbox).padding(.top, 2)
+            Toggle(L("添加 \(task.title)"), isOn: draft.included).labelsHidden().toggleStyle(.checkbox).padding(.top, 2)
             VStack(alignment: .leading, spacing: 7) {
                 HStack {
                     Circle().fill(task.tint.color).frame(width: 7, height: 7)
-                    TextField("任务名称", text: draft.task.title).textFieldStyle(.plain)
-                        .font(.system(size: 13, weight: .medium)).accessibilityLabel("预览任务名称")
-                    Button("调整") { editingDraft = task }.buttonStyle(.plain).foregroundStyle(Palette.accent)
-                        .accessibilityLabel("调整 \(task.title)")
+                    TextField(L("任务名称"), text: draft.task.title).textFieldStyle(.plain)
+                        .font(.system(size: 13, weight: .medium)).accessibilityLabel(L("预览任务名称"))
+                    Button(L("调整")) { editingDraft = task }.buttonStyle(.plain).foregroundStyle(Palette.accent)
+                        .accessibilityLabel(L("调整 \(task.title)"))
                 }
                 HStack(spacing: 5) {
                     Text(task.start, format: .dateTime.year().month(.twoDigits).day(.twoDigits))
                     Text("–")
                     Text(task.end, format: .dateTime.year().month(.twoDigits).day(.twoDigits))
-                    Text("· \(task.duration) 天 · \(Int((task.progress * 100).rounded()))%")
+                    Text(L("· \(task.duration) 天 · \(Int((task.progress * 100).rounded()))%"))
                 }.font(.system(size: 10)).foregroundStyle(Palette.muted)
                 if !value.warnings.isEmpty {
-                    Text(value.warnings.joined(separator: "\n"))
+                    Text(value.warnings.map { L($0) }.joined(separator: "\n"))
                         .font(.system(size: 10)).foregroundStyle(Color(hex: 0xA07C40)).lineSpacing(3)
                 }
-                Text("原文：\(value.source)").font(.system(size: 10)).foregroundStyle(Palette.muted)
+                Text(L("原文：\(value.source)")).font(.system(size: 10)).foregroundStyle(Palette.muted)
                     .lineLimit(2).help(value.source)
             }
         }.padding(12).frame(maxWidth: .infinity, alignment: .leading)

@@ -12,7 +12,7 @@ enum WidgetSizePreset: String, CaseIterable, Identifiable {
         }
     }
     var title: String {
-        let name = self == .compact ? "紧凑" : (self == .standard ? "标准" : "宽敞")
+        let name = self == .compact ? L("紧凑") : (self == .standard ? L("标准") : L("宽敞"))
         return "\(name) · \(Int(size.width)) × \(Int(size.height))"
     }
 }
@@ -66,9 +66,9 @@ struct WindowResizeGrip: NSViewRepresentable {
     }
     func makeNSView(context: Context) -> NSView {
         let view = GripView()
-        view.toolTip = "拖动调整小组件大小"
+        view.toolTip = L("拖动调整小组件大小")
         view.setAccessibilityElement(true)
-        view.setAccessibilityLabel("拖动调整小组件大小")
+        view.setAccessibilityLabel(L("拖动调整小组件大小"))
         return view
     }
     func updateNSView(_ nsView: NSView, context: Context) {}

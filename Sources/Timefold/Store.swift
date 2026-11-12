@@ -68,7 +68,7 @@ final class ProjectStore: ObservableObject {
             } catch {
                 project = Project()
                 hasUnreadableData = true
-                saveError = "无法读取任务文件，原文件已保留。请通过菜单检查数据文件。"
+                saveError = L("无法读取任务文件，原文件已保留。请通过菜单检查数据文件。")
             }
         } else {
             project = .example()
@@ -140,7 +140,7 @@ final class ProjectStore: ObservableObject {
         guard !hasUnreadableData else { return false }
         let values = tasks.map { $0.normalized() }
         guard !values.isEmpty, values.allSatisfy({ !$0.title.isEmpty }) else {
-            saveError = "请补全任务名称后再添加。"
+            saveError = L("请补全任务名称后再添加。")
             return false
         }
         var next = project
@@ -149,7 +149,7 @@ final class ProjectStore: ObservableObject {
             else { next.tasks.append(value) }
         }
         guard next.tasks.count <= 10_000 else {
-            saveError = "任务总数不能超过 10,000 项，请减少本次添加的任务。"
+            saveError = L("任务总数不能超过 10,000 项，请减少本次添加的任务。")
             return false
         }
         next.isExample = false
@@ -224,7 +224,7 @@ final class ProjectStore: ObservableObject {
             try encoder.encode(library).write(to: fileURL, options: .atomic)
             saveError = nil
         } catch {
-            saveError = "保存失败：\(error.localizedDescription)"
+            saveError = L("保存失败：\(error.localizedDescription)")
         }
     }
 
@@ -248,7 +248,7 @@ final class ProjectStore: ObservableObject {
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             encoder.dateEncodingStrategy = .iso8601
             try encoder.encode(project).write(to: url, options: .atomic)
-        } catch { saveError = "导出失败：\(error.localizedDescription)" }
+        } catch { saveError = L("导出失败：\(error.localizedDescription)") }
     }
 
     func importJSON() {
@@ -261,6 +261,6 @@ final class ProjectStore: ObservableObject {
             guard !hasUnreadableData else { return }
             mutate { $0 = loaded }
             if let first = loaded.tasks.first { reveal(first) }
-        } catch { saveError = "导入失败：请选择时序导出的有效 JSON 文件。" }
+        } catch { saveError = L("导入失败：请选择时序导出的有效 JSON 文件。") }
     }
 }

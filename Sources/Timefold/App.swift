@@ -42,6 +42,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         } else {
             store = ProjectStore()
         }
+        NotificationCenter.default.addObserver(forName: .timefoldLanguageChanged, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in
+                self?.installMenu()
+                self?.window?.title = L("时序 · 桌面甘特图")
+            }
+        }
         installMenu()
         createWindow(previewMode: previewMode)
         createStatusItem()
@@ -61,7 +67,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         frameName = previewMode ? "Timefold.preview" : "Timefold.mainWidget"
         let size = NSSize(width: 808, height: 598)
         window = WidgetWindow(contentRect: NSRect(origin: .zero, size: size), styleMask: [.borderless, .resizable], backing: .buffered, defer: false)
-        window.title = "时序 · 桌面甘特图"
+        window.title = L("时序 · 桌面甘特图")
         window.backgroundColor = .clear
         window.isOpaque = false
         window.hasShadow = true
@@ -104,11 +110,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if status == noErr {
             store.shortcut = shortcut
             store.shortcutError = nil
-            statusItem.button?.toolTip = "时序 · \(shortcut == .disabled ? "点击呼出" : shortcut.display + " 呼出 / 收起")"
+            statusItem.button?.toolTip = L("时序 · \(shortcut == .disabled ? L("点击呼出") : shortcut.display + L(" 呼出 / 收起"))")
         } else {
             store.shortcutError = status == eventHotKeyExistsErr
-                ? "\(shortcut.display) 已被占用，请在菜单中换一个快捷键。"
-                : "无法注册快捷键（\(status)），请在菜单中重新选择。"
+                ? L("\(shortcut.display) 已被占用，请在菜单中换一个快捷键。")
+                : L("无法注册快捷键（\(status)），请在菜单中重新选择。")
         }
     }
 
@@ -116,30 +122,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let bar = NSMenu()
         let appItem = NSMenuItem()
         let appMenu = NSMenu()
-        appMenu.addItem(withTitle: "显示时序", action: #selector(showWidget), keyEquivalent: "1").target = self
+        appMenu.addItem(withTitle: L("显示时序"), action: #selector(showWidget), keyEquivalent: "1").target = self
         appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: "退出时序", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appMenu.addItem(withTitle: L("退出时序"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appItem.submenu = appMenu
         bar.addItem(appItem)
 
-        let fileItem = NSMenuItem(title: "文件", action: nil, keyEquivalent: "")
-        let fileMenu = NSMenu(title: "文件")
-        fileMenu.addItem(withTitle: "新建任务", action: #selector(newTask), keyEquivalent: "n").target = self
-        let textPlanItem = fileMenu.addItem(withTitle: "文字排期…", action: #selector(parseTextPlan), keyEquivalent: "n")
+        let fileItem = NSMenuItem(title: L("文件"), action: nil, keyEquivalent: "")
+        let fileMenu = NSMenu(title: L("文件"))
+        fileMenu.addItem(withTitle: L("新建任务"), action: #selector(newTask), keyEquivalent: "n").target = self
+        let textPlanItem = fileMenu.addItem(withTitle: L("文字排期…"), action: #selector(parseTextPlan), keyEquivalent: "n")
         textPlanItem.keyEquivalentModifierMask = [.command, .shift]
         textPlanItem.target = self
         fileItem.submenu = fileMenu
         bar.addItem(fileItem)
 
-        let editItem = NSMenuItem(title: "编辑", action: nil, keyEquivalent: "")
-        let editMenu = NSMenu(title: "编辑")
-        editMenu.addItem(withTitle: "撤销任务修改", action: #selector(undoTask), keyEquivalent: "z").target = self
+        let editItem = NSMenuItem(title: L("编辑"), action: nil, keyEquivalent: "")
+        let editMenu = NSMenu(title: L("编辑"))
+        editMenu.addItem(withTitle: L("撤销任务修改"), action: #selector(undoTask), keyEquivalent: "z").target = self
         editMenu.addItem(.separator())
-        editMenu.addItem(withTitle: "剪切", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
-        editMenu.addItem(withTitle: "复制", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
-        editMenu.addItem(withTitle: "粘贴", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
-        editMenu.addItem(withTitle: "全选", action: #selector(selectAll(_:)), keyEquivalent: "a").target = self
-        editMenu.addItem(withTitle: "删除选中任务", action: #selector(deleteSelection), keyEquivalent: "").target = self
+        editMenu.addItem(withTitle: L("剪切"), action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        editMenu.addItem(withTitle: L("复制"), action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        editMenu.addItem(withTitle: L("粘贴"), action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        editMenu.addItem(withTitle: L("全选"), action: #selector(selectAll(_:)), keyEquivalent: "a").target = self
+        editMenu.addItem(withTitle: L("删除选中任务"), action: #selector(deleteSelection), keyEquivalent: "").target = self
         editItem.submenu = editMenu
         bar.addItem(editItem)
         NSApp.mainMenu = bar
@@ -148,8 +154,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func createStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let button = statusItem.button {
-            button.image = NSImage(systemSymbolName: "chart.bar.xaxis", accessibilityDescription: "时序甘特图")
-            button.toolTip = "时序 · 桌面甘特图（右键打开菜单）"
+            button.image = NSImage(systemSymbolName: "chart.bar.xaxis", accessibilityDescription: L("时序甘特图"))
+            button.toolTip = L("时序 · 桌面甘特图（右键打开菜单）")
             button.target = self
             button.action = #selector(statusClicked)
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
@@ -159,12 +165,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc private func statusClicked() {
         if NSApp.currentEvent?.type == .rightMouseUp {
             let menu = NSMenu()
-            menu.addItem(withTitle: window.isVisible ? "收起小组件" : "显示小组件", action: #selector(toggleWidget), keyEquivalent: "").target = self
-            menu.addItem(withTitle: "新建任务", action: #selector(newTask), keyEquivalent: "").target = self
-            let pin = menu.addItem(withTitle: "始终置顶", action: #selector(togglePin), keyEquivalent: "")
+            menu.addItem(withTitle: window.isVisible ? L("收起小组件") : L("显示小组件"), action: #selector(toggleWidget), keyEquivalent: "").target = self
+            menu.addItem(withTitle: L("新建任务"), action: #selector(newTask), keyEquivalent: "").target = self
+            let pin = menu.addItem(withTitle: L("始终置顶"), action: #selector(togglePin), keyEquivalent: "")
             pin.target = self
             pin.state = store.pinned ? .on : .off
-            let shortcutItem = NSMenuItem(title: "呼出快捷键", action: nil, keyEquivalent: "")
+            let shortcutItem = NSMenuItem(title: L("呼出快捷键"), action: nil, keyEquivalent: "")
             let shortcutMenu = NSMenu()
             for shortcut in GlobalShortcut.allCases {
                 let item = shortcutMenu.addItem(withTitle: shortcut.display, action: #selector(selectShortcut(_:)), keyEquivalent: "")
@@ -174,7 +180,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             }
             shortcutItem.submenu = shortcutMenu
             menu.addItem(shortcutItem)
-            let sizeItem = NSMenuItem(title: "窗口大小", action: nil, keyEquivalent: "")
+            let sizeItem = NSMenuItem(title: L("窗口大小"), action: nil, keyEquivalent: "")
             let sizeMenu = NSMenu()
             for preset in WidgetSizePreset.allCases {
                 let item = sizeMenu.addItem(withTitle: preset.title, action: #selector(selectSize(_:)), keyEquivalent: "")
@@ -184,7 +190,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             sizeItem.submenu = sizeMenu
             menu.addItem(sizeItem)
             menu.addItem(.separator())
-            menu.addItem(withTitle: "退出时序", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+            menu.addItem(withTitle: L("退出时序"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
             if let button = statusItem.button {
                 menu.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.minY - 4), in: button)
             }

@@ -27,6 +27,7 @@ struct WidgetActions {
 }
 
 struct WidgetView: View {
+    @ObservedObject private var appLanguage = AppLanguage.shared
     @ObservedObject var store: ProjectStore
     var actions = WidgetActions()
     @State private var editing: GanttTask?
@@ -70,6 +71,7 @@ struct WidgetView: View {
         }
         .foregroundStyle(Palette.text)
         .font(.system(size: 12))
+        .environment(\.locale, appLanguage.locale)
         .preferredColorScheme(store.dark ? .dark : .light)
         .onExitCommand(perform: actions.hide)
         .sheet(item: $editing) { task in
@@ -82,7 +84,7 @@ struct WidgetView: View {
                     if let first = tasks.min(by: { $0.start < $1.start }) { store.reveal(first) }
                     return nil
                 }
-                return store.saveError ?? "暂时无法添加任务，请检查任务文件。"
+                return store.saveError ?? L("暂时无法添加任务，请检查任务文件。")
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .newGanttTask)) { _ in addTask() }
@@ -105,60 +107,64 @@ struct WidgetView: View {
                 Image(systemName: "chart.bar.xaxis").font(.system(size: 15, weight: .semibold)).foregroundStyle(.white)
             }.frame(width: 31, height: 31)
             VStack(alignment: .leading, spacing: 1) {
-                Text("时序").font(.system(size: 14, weight: .semibold))
+                Text(L("时序")).font(.system(size: 14, weight: .semibold))
                 Text("A LITTLE ROOM FOR BIG PLANS").font(.system(size: 8, weight: .medium, design: .rounded))
                     .tracking(1.1).foregroundStyle(Palette.muted)
             }
             WindowDragArea(showGrip: true).frame(minWidth: 20, maxWidth: .infinity).frame(height: 31)
-                .help("拖动这里移动小组件")
+                .help(L("拖动这里移动小组件"))
             Menu { sizeOptions } label: {
                 Image(systemName: "arrow.up.left.and.arrow.down.right")
                     .font(.system(size: 11, weight: .medium)).foregroundStyle(Palette.muted)
                     .frame(width: 27, height: 27).contentShape(Rectangle())
             }.menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
-                .accessibilityLabel("窗口大小").help("调整窗口大小；也可拖动右下角")
-            IconButton(symbol: store.pinned ? "pin.fill" : "pin", help: store.pinned ? "取消置顶" : "始终置顶", active: store.pinned) {
+                .accessibilityLabel(L("窗口大小")).help(L("调整窗口大小；也可拖动右下角"))
+            IconButton(symbol: store.pinned ? "pin.fill" : "pin", help: store.pinned ? L("取消置顶") : L("始终置顶"), active: store.pinned) {
                 store.pinned.toggle()
                 actions.pin(store.pinned)
             }
             Menu {
-                Button("新建任务", action: addTask).keyboardShortcut("n")
-                Button("文字排期…", action: openTextPlan).keyboardShortcut("n", modifiers: [.command, .shift])
-                Button("撤销上次修改", action: store.undo).disabled(!store.canUndo)
+                Button(L("新建任务"), action: addTask).keyboardShortcut("n")
+                Button(L("文字排期…"), action: openTextPlan).keyboardShortcut("n", modifiers: [.command, .shift])
+                Button(L("撤销上次修改"), action: store.undo).disabled(!store.canUndo)
                 Divider()
-                Toggle("始终置顶", isOn: Binding(get: { store.pinned }, set: { store.pinned = $0; actions.pin($0) }))
-                Toggle("深色外观", isOn: $store.dark)
-                Toggle("隐藏已完成任务", isOn: $store.hideCompleted)
-                Menu("窗口大小") { sizeOptions }
-                Menu("呼出快捷键") {
-                    Picker("呼出快捷键", selection: Binding(get: { store.shortcut }, set: { actions.shortcut($0) })) {
+                Toggle(L("始终置顶"), isOn: Binding(get: { store.pinned }, set: { store.pinned = $0; actions.pin($0) }))
+                Picker("Language / 语言", selection: $appLanguage.code) {
+                    Text("English").tag("en")
+                    Text("简体中文").tag("zh")
+                }
+                Toggle(L("深色外观"), isOn: $store.dark)
+                Toggle(L("隐藏已完成任务"), isOn: $store.hideCompleted)
+                Menu(L("窗口大小")) { sizeOptions }
+                Menu(L("呼出快捷键")) {
+                    Picker(L("呼出快捷键"), selection: Binding(get: { store.shortcut }, set: { actions.shortcut($0) })) {
                         ForEach(GlobalShortcut.allCases) { shortcut in Text(shortcut.display).tag(shortcut) }
                     }.pickerStyle(.inline)
                 }
                 Divider()
-                Button("导出任务…", action: store.exportJSON)
-                Button("导入任务…", action: store.importJSON)
-                Button("打开数据文件夹") { NSWorkspace.shared.open(store.fileURL.deletingLastPathComponent()) }
-                if store.project.isExample { Button("清空示例，开始我的项目", action: store.clearExample) }
+                Button(L("导出任务…"), action: store.exportJSON)
+                Button(L("导入任务…"), action: store.importJSON)
+                Button(L("打开数据文件夹")) { NSWorkspace.shared.open(store.fileURL.deletingLastPathComponent()) }
+                if store.project.isExample { Button(L("清空示例，开始我的项目"), action: store.clearExample) }
                 Divider()
-                Button("使用说明") { helpShown = true }
-                Button("收起到菜单栏", action: actions.hide)
-                Button("退出时序", action: actions.quit).keyboardShortcut("q")
+                Button(L("使用说明")) { helpShown = true }
+                Button(L("收起到菜单栏"), action: actions.hide)
+                Button(L("退出时序"), action: actions.quit).keyboardShortcut("q")
             } label: {
                 Image(systemName: "ellipsis").font(.system(size: 16, weight: .medium))
                     .frame(width: 28, height: 28).contentShape(Rectangle())
             }
             .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
-            .help("设置与更多操作")
+            .help(L("设置与更多操作"))
             .popover(isPresented: $helpShown) {
                 VStack(alignment: .leading, spacing: 13) {
-                    Text("给计划一点空间").font(.system(size: 16, weight: .semibold))
-                    Text("拖动顶部圆点区移动小组件。\n拖动右下角手柄，自由调整窗口大小。\n拖动任务条调整日期，两端调整时长。\n单击选择；⌘点击多选；Shift点击连续选择。\n双击任务名称、日期、进度或任务条编辑。\n双击任务列表下方的空白处创建新任务。\n全选后，可在底部批量完成或删除任务。")
+                    Text(L("给计划一点空间")).font(.system(size: 16, weight: .semibold))
+                    Text(L("拖动顶部圆点区移动小组件。\n拖动右下角手柄，自由调整窗口大小。\n拖动任务条调整日期，两端调整时长。\n单击选择；⌘点击多选；Shift点击连续选择。\n双击任务名称、日期、进度或任务条编辑。\n双击任务列表下方的空白处创建新任务。\n全选后，可在底部批量完成或删除任务。"))
                         .lineSpacing(6).foregroundStyle(Palette.muted)
                     if store.shortcut != .disabled {
-                        Text("\(store.shortcut.display) 全局呼出 / 收起").font(.system(size: 11, weight: .medium))
+                        Text(L("\(store.shortcut.display) 全局呼出 / 收起")).font(.system(size: 11, weight: .medium))
                     }
-                    Text("⌘A 全选    ⌘N 新任务    ⌘Z 撤销").font(.system(size: 11, design: .monospaced))
+                    Text(L("⌘A 全选    ⌘N 新任务    ⌘Z 撤销")).font(.system(size: 11, design: .monospaced))
                 }.padding(24).frame(width: 330)
             }
         }
@@ -178,11 +184,11 @@ struct WidgetView: View {
                             }
                         }
                         Divider()
-                        Button("新建计划…") { newPlanName = ""; newPlanShown = true }
-                        Button("重命名当前计划…", action: openProjectRename)
-                        Button("删除当前计划", role: .destructive) { store.deleteCurrentPlan() }
+                        Button(L("新建计划…")) { newPlanName = ""; newPlanShown = true }
+                        Button(L("重命名当前计划…"), action: openProjectRename)
+                        Button(L("删除当前计划"), role: .destructive) { store.deleteCurrentPlan() }
                         if !store.deletedPlans.isEmpty {
-                            Button("恢复最近删除的计划") { store.restoreDeletedPlan() }
+                            Button(L("恢复最近删除的计划")) { store.restoreDeletedPlan() }
                         }
                     } label: {
                         HStack(spacing: 7) {
@@ -190,31 +196,31 @@ struct WidgetView: View {
                             Image(systemName: "chevron.down").font(.system(size: 9, weight: .semibold))
                         }.padding(.vertical, 3).contentShape(Rectangle())
                     }.menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize(horizontal: false, vertical: true)
-                        .accessibilityLabel("切换计划").help("点击名称切换、新建、重命名或删除计划")
+                        .accessibilityLabel(L("切换计划")).help(L("点击名称切换、新建、重命名或删除计划"))
                     if store.project.isExample {
-                        Text("示例").font(.system(size: 9, weight: .medium)).foregroundStyle(Palette.accent)
+                        Text(L("示例")).font(.system(size: 9, weight: .medium)).foregroundStyle(Palette.accent)
                             .padding(.horizontal, 6).padding(.vertical, 3).background(Palette.accent.opacity(0.08), in: Capsule())
                     }
                 }
                 .popover(isPresented: $newPlanShown) {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("新建计划").font(.headline)
-                        TextField("例如：工作、学习、个人项目", text: $newPlanName).textFieldStyle(.roundedBorder)
+                        Text(L("新建计划")).font(.headline)
+                        TextField(L("例如：工作、学习、个人项目"), text: $newPlanName).textFieldStyle(.roundedBorder)
                             .onSubmit { createPlan() }
-                        HStack { Spacer(); Button("创建", action: createPlan).disabled(newPlanName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) }
+                        HStack { Spacer(); Button(L("创建"), action: createPlan).disabled(newPlanName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) }
                     }.padding(20).frame(width: 280)
                 }
                 .popover(isPresented: $renameShown) {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("项目名称").font(.headline)
-                        TextField("输入项目名称", text: $projectName).textFieldStyle(.roundedBorder)
+                        Text(L("项目名称")).font(.headline)
+                        TextField(L("输入项目名称"), text: $projectName).textFieldStyle(.roundedBorder)
                             .onSubmit { renameProject() }
-                        HStack { Spacer(); Button("保存", action: renameProject).keyboardShortcut(.defaultAction) }
+                        HStack { Spacer(); Button(L("保存"), action: renameProject).keyboardShortcut(.defaultAction) }
                     }.padding(20).frame(width: 280)
                 }
                 HStack(spacing: 6) {
                     Circle().fill(Palette.accent).frame(width: 5, height: 5)
-                    Text(store.project.activeCount > 0 ? "\(store.project.activeCount) 个任务正在推进" : (store.project.tasks.isEmpty ? "从第一个任务开始" : "所有任务已完成"))
+                    Text(store.project.activeCount > 0 ? L("\(store.project.activeCount) 个任务正在推进") : (store.project.tasks.isEmpty ? L("从第一个任务开始") : L("所有任务已完成")))
                     Text("·")
                     Text(Date(), format: .dateTime.month(.twoDigits).day(.twoDigits))
                 }.font(.system(size: 11)).foregroundStyle(Palette.muted)
@@ -231,37 +237,37 @@ struct WidgetView: View {
                         Capsule().fill(Palette.accent).frame(width: max(0, geo.size.width * store.project.progress))
                     }
                 }.frame(width: 78, height: 3)
-                Text("整体进度").font(.system(size: 9)).foregroundStyle(Palette.muted)
+                Text(L("整体进度")).font(.system(size: 9)).foregroundStyle(Palette.muted)
             }.padding(.trailing, 17)
             Button(action: openTextPlan) {
                 HStack(spacing: 5) {
                     Image(systemName: "sparkles")
-                    if widgetWidth >= 700 { Text("文字排期") }
+                    if widgetWidth >= 700 { Text(L("文字排期")) }
                 }.font(.system(size: 11, weight: .medium))
                     .padding(.horizontal, 10).padding(.vertical, 9)
                     .background(Palette.accent.opacity(0.09), in: RoundedRectangle(cornerRadius: 9)).foregroundStyle(Palette.accent)
-            }.buttonStyle(.plain).accessibilityLabel("文字排期").help("输入中文描述，解析并预览任务（⇧⌘N）")
+            }.buttonStyle(.plain).accessibilityLabel(L("文字排期")).help(L("输入中文描述，解析并预览任务（⇧⌘N）"))
             Button(action: addTask) {
-                Label("新任务", systemImage: "plus").font(.system(size: 11, weight: .medium))
+                Label(L("新任务"), systemImage: "plus").font(.system(size: 11, weight: .medium))
                     .padding(.horizontal, 13).padding(.vertical, 9)
                     .background(Palette.accent, in: RoundedRectangle(cornerRadius: 9)).foregroundStyle(.white)
-            }.buttonStyle(.plain).help("新建任务（⌘N）")
+            }.buttonStyle(.plain).help(L("新建任务（⌘N）"))
         }.padding(.horizontal, 24).padding(.bottom, 22)
     }
 
     private var navigation: some View {
         HStack(spacing: 7) {
-            IconButton(symbol: "chevron.left", help: "上一段日期") { store.navigate(-1) }
+            IconButton(symbol: "chevron.left", help: L("上一段日期")) { store.navigate(-1) }
             Text(Day.range(store.viewStart, days: store.days)).font(.system(size: 11, weight: .medium)).monospacedDigit()
-            IconButton(symbol: "chevron.right", help: "下一段日期") { store.navigate(1) }
-            Button("今天") { store.today() }.buttonStyle(.plain).font(.system(size: 10, weight: .medium))
+            IconButton(symbol: "chevron.right", help: L("下一段日期")) { store.navigate(1) }
+            Button(L("今天")) { store.today() }.buttonStyle(.plain).font(.system(size: 10, weight: .medium))
                 .foregroundStyle(Palette.accent).padding(.horizontal, 8).padding(.vertical, 5)
                 .background(Palette.accent.opacity(0.07), in: RoundedRectangle(cornerRadius: 6))
             Spacer()
             HStack(spacing: 2) {
                 ForEach([7, 14, 28], id: \.self) { count in
                     Button { store.days = count } label: {
-                        Text(count == 7 ? "1 周" : (count == 14 ? "2 周" : "4 周"))
+                        Text(count == 7 ? L("1 周") : (count == 14 ? L("2 周") : L("4 周")))
                             .font(.system(size: 10, weight: .medium)).frame(width: 40, height: 25)
                             .background(store.days == count ? Palette.surface : Color.clear, in: RoundedRectangle(cornerRadius: 6))
                             .foregroundStyle(store.days == count ? Palette.text : Palette.muted)
@@ -287,11 +293,11 @@ struct WidgetView: View {
                                             .font(.system(size: 8, weight: .bold)).foregroundStyle(.white)
                                     }
                                 }.frame(width: 13, height: 13)
-                                Text(allSelected ? "取消全选" : "全选")
+                                Text(allSelected ? L("取消全选") : L("全选"))
                             }.contentShape(Rectangle())
                         }.buttonStyle(.plain).disabled(visibleIDs.isEmpty)
-                            .accessibilityLabel(allSelected ? "取消全选任务" : "全选任务").help("全选当前显示的任务（⌘A）")
-                        Spacer(); Text("进度")
+                            .accessibilityLabel(allSelected ? L("取消全选任务") : L("全选任务")).help(L("全选当前显示的任务（⌘A）"))
+                        Spacer(); Text(L("进度"))
                     }
                         .font(.system(size: 9, weight: .medium)).foregroundStyle(Palette.muted)
                         .padding(.leading, 14).padding(.trailing, 18).frame(width: labelWidth, height: 49)
@@ -301,9 +307,9 @@ struct WidgetView: View {
                 if store.visibleTasks.isEmpty {
                     VStack(spacing: 12) {
                         Image(systemName: "chart.bar.doc.horizontal").font(.system(size: 30, weight: .light)).foregroundStyle(Palette.accent.opacity(0.65))
-                        Text(store.project.tasks.isEmpty ? "把想做的事，排进时间里。" : "已完成的任务都藏好了。")
+                        Text(store.project.tasks.isEmpty ? L("把想做的事，排进时间里。") : L("已完成的任务都藏好了。"))
                             .font(.system(size: 13)).foregroundStyle(Palette.muted)
-                        Button(store.project.tasks.isEmpty ? "创建第一个任务" : "显示已完成任务") {
+                        Button(store.project.tasks.isEmpty ? L("创建第一个任务") : L("显示已完成任务")) {
                             if store.project.tasks.isEmpty { addTask() } else { store.hideCompleted = false }
                         }.buttonStyle(.plain).foregroundStyle(Palette.accent)
                     }.frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -322,17 +328,17 @@ struct WidgetView: View {
                                 }
                                 .background(selection.ids.contains(task.id) ? Palette.accent.opacity(0.095) : Color.clear)
                                 .contextMenu {
-                                    Button("编辑任务") { editing = task }
+                                    Button(L("编辑任务")) { editing = task }
                                     if selection.ids.contains(task.id), selection.ids.count > 1 {
-                                        Button("\(selectedComplete ? "重新打开" : "完成")选中 \(selection.ids.count) 项任务") {
+                                        Button(L("\(selectedComplete ? L("重新打开") : L("完成"))选中 \(selection.ids.count) 项任务")) {
                                             store.setComplete(!selectedComplete, ids: selection.ids)
                                         }
-                                        Button("删除选中 \(selection.ids.count) 项任务", role: .destructive, action: deleteSelected)
+                                        Button(L("删除选中 \(selection.ids.count) 项任务"), role: .destructive, action: deleteSelected)
                                     } else {
-                                        Button(task.isComplete ? "重新打开" : "标为完成") { store.toggle(task) }
-                                        Button("删除任务", role: .destructive) { store.delete(task.id) }
+                                        Button(task.isComplete ? L("重新打开") : L("标为完成")) { store.toggle(task) }
+                                        Button(L("删除任务"), role: .destructive) { store.delete(task.id) }
                                     }
-                                    Button("定位到任务日期") { store.reveal(task) }
+                                    Button(L("定位到任务日期")) { store.reveal(task) }
                                 }
                                 Rectangle().fill(Palette.line.opacity(0.65)).frame(height: 1)
                             }
@@ -349,8 +355,8 @@ struct WidgetView: View {
     }
 
     private var emptyTaskArea: some View {
-        TaskPointerArea(label: "双击空白新建任务", select: { _ in selection.clear() }, edit: addTask,
-                        help: "双击这里创建新任务，单击取消任务选择")
+        TaskPointerArea(label: L("双击空白新建任务"), select: { _ in selection.clear() }, edit: addTask,
+                        help: L("双击这里创建新任务，单击取消任务选择"))
             .frame(maxWidth: .infinity)
     }
 
@@ -360,28 +366,28 @@ struct WidgetView: View {
                 Image(systemName: "exclamationmark.triangle").foregroundStyle(.orange)
                 Text(error).lineLimit(1).help(error)
             } else if !selection.ids.isEmpty {
-                Text("已选 \(selection.ids.count) 项").foregroundStyle(Palette.accent)
-                Button(selectedComplete ? "重新打开" : "完成") { store.setComplete(!selectedComplete, ids: selection.ids) }
+                Text(L("已选 \(selection.ids.count) 项")).foregroundStyle(Palette.accent)
+                Button(selectedComplete ? L("重新打开") : L("完成")) { store.setComplete(!selectedComplete, ids: selection.ids) }
                     .buttonStyle(.plain).foregroundStyle(Palette.accent).padding(.leading, 7)
-                Button("删除", role: .destructive, action: deleteSelected)
+                Button(L("删除"), role: .destructive, action: deleteSelected)
                     .buttonStyle(.plain).foregroundStyle(Color(hex: 0xC47B65)).padding(.leading, 5)
-                Button("取消选择") { selection.clear() }.buttonStyle(.plain).padding(.leading, 5)
+                Button(L("取消选择")) { selection.clear() }.buttonStyle(.plain).padding(.leading, 5)
             } else {
                 Image(systemName: "checkmark.shield").font(.system(size: 10))
-                Text("\(store.project.tasks.count) 个任务 · 保存在此 Mac")
+                Text(L("\(store.project.tasks.count) 个任务 · 保存在此 Mac"))
             }
             if !store.deletedPlans.isEmpty {
-                Button("撤销删除计划") { store.restoreDeletedPlan() }.buttonStyle(.plain).foregroundStyle(Palette.accent)
+                Button(L("撤销删除计划")) { store.restoreDeletedPlan() }.buttonStyle(.plain).foregroundStyle(Palette.accent)
             }
             if store.canUndo {
-                Button("撤销") { store.undo() }.buttonStyle(.plain).foregroundStyle(Palette.accent).padding(.leading, 7)
+                Button(L("撤销")) { store.undo() }.buttonStyle(.plain).foregroundStyle(Palette.accent).padding(.leading, 7)
             }
             Spacer()
             if selection.ids.isEmpty {
-                HStack(spacing: 5) { Circle().fill(Palette.accent).frame(width: 4, height: 4); Text("今天") }
+                HStack(spacing: 5) { Circle().fill(Palette.accent).frame(width: 4, height: 4); Text(L("今天")) }
             }
-            Text(store.shortcut == .disabled ? "拖动排期 · 双击编辑" : "\(store.shortcut.display) 呼出")
-                .padding(.leading, 10).help("可在右上角菜单中修改全局呼出快捷键")
+            Text(store.shortcut == .disabled ? L("拖动排期 · 双击编辑") : L("\(store.shortcut.display) 呼出"))
+                .padding(.leading, 10).help(L("可在右上角菜单中修改全局呼出快捷键"))
         }.font(.system(size: 9)).foregroundStyle(Palette.muted)
             .padding(.leading, 25).padding(.trailing, 47).padding(.vertical, 16)
     }
@@ -426,6 +432,7 @@ struct WidgetView: View {
 }
 
 struct TimelineHeader: View {
+    @ObservedObject private var appLanguage = AppLanguage.shared
     var start: Date
     var days: Int
     var body: some View {
@@ -452,6 +459,7 @@ struct TimelineHeader: View {
 }
 
 struct TaskLabel: View {
+    @ObservedObject private var appLanguage = AppLanguage.shared
     var task: GanttTask
     var toggle: () -> Void
     var select: (NSEvent.ModifierFlags) -> Void
@@ -467,26 +475,27 @@ struct TaskLabel: View {
                         Image(systemName: "checkmark").font(.system(size: 8, weight: .bold)).foregroundStyle(.white)
                     }
                 }.frame(width: 18, height: 18).frame(width: 24, height: 38).contentShape(Rectangle())
-            }.buttonStyle(.plain).help(task.isComplete ? "重新打开任务" : "标为完成")
+            }.buttonStyle(.plain).help(task.isComplete ? L("重新打开任务") : L("标为完成"))
             HStack(spacing: 3) {
                 VStack(alignment: .leading, spacing: 5) {
                     Text(task.title).font(.system(size: 11, weight: .medium)).lineLimit(1)
                         .foregroundStyle(task.isComplete ? Palette.muted : Palette.text)
                     HStack(spacing: 5) {
                         Text("\(Day.short(task.start)) – \(Day.short(task.end))")
-                        if task.isOverdue { Text("逾期").foregroundStyle(Color(hex: 0xC47B65)) }
+                        if task.isOverdue { Text(L("逾期")).foregroundStyle(Color(hex: 0xC47B65)) }
                     }.font(.system(size: 8)).foregroundStyle(Palette.muted)
                 }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
                 Text("\(Int((task.progress * 100).rounded()))%").font(.system(size: 10, design: .rounded)).monospacedDigit()
                     .foregroundStyle(Palette.muted).frame(width: 29, alignment: .trailing)
             }
-            .overlay { TaskPointerArea(label: "\(task.title)，\(Day.short(task.start)) 至 \(Day.short(task.end))，进度 \(Int(task.progress * 100))%", select: select, edit: edit, rangeDrag: rangeDrag) }
-            .help("单击选择，按住拖过多行可多选；双击编辑 \(task.title)")
+            .overlay { TaskPointerArea(label: L("\(task.title)，\(Day.short(task.start)) 至 \(Day.short(task.end))，进度 \(Int(task.progress * 100))%"), select: select, edit: edit, rangeDrag: rangeDrag) }
+            .help(L("单击选择，按住拖过多行可多选；双击编辑 \(task.title)"))
         }.padding(.leading, 14).padding(.trailing, 17)
     }
 }
 
 struct TimelineRow: View {
+    @ObservedObject private var appLanguage = AppLanguage.shared
     var task: GanttTask
     var start: Date
     var days: Int
@@ -526,7 +535,7 @@ struct TimelineRow: View {
                     Button(action: reveal) {
                         HStack(spacing: 4) {
                             Image(systemName: Day.distance(start, task.end) < 0 ? "arrow.left" : "arrow.right")
-                            Text("查看排期")
+                            Text(L("查看排期"))
                         }.font(.system(size: 9)).foregroundStyle(Palette.muted)
                             .padding(.horizontal, 9).padding(.vertical, 7)
                     }.buttonStyle(.plain).padding(.leading, 10)
@@ -544,7 +553,7 @@ struct TimelineRow: View {
                 let span = TimelineSpan.visible(task: task, start: start, days: days)
                 let rect = span.map { CGRect(x: CGFloat($0.offset) * cell + 4, y: (geo.size.height - 25) / 2,
                                              width: max(8, CGFloat($0.count) * cell - 8), height: 25) }
-                TaskPointerArea(label: "编辑 \(task.title) 的排期", bar: rect,
+                TaskPointerArea(label: L("编辑 \(task.title) 的排期"), bar: rect,
                                 canResizeStart: span.map { !$0.clippedStart } ?? false,
                                 canResizeEnd: span.map { !$0.clippedEnd } ?? false,
                                 select: select, edit: edit, singleClick: span == nil ? reveal : nil,
@@ -575,7 +584,7 @@ struct TimelineRow: View {
                 if span.clippedStart { Image(systemName: "chevron.left").font(.system(size: 7, weight: .bold)) }
                 Spacer(minLength: 0)
                 if width > 54 {
-                    Text(task.isComplete ? "完成" : "\(preview.duration) 天")
+                    Text(task.isComplete ? L("完成") : L("\(preview.duration) 天"))
                         .font(.system(size: 9, weight: .medium, design: .rounded))
                 }
                 Spacer(minLength: 0)
@@ -593,8 +602,8 @@ struct TimelineRow: View {
         }
         .allowsHitTesting(false)
         .onHover { hovered = $0 }
-        .help("\(task.title)\n\(Day.short(preview.start)) – \(Day.short(preview.end)) · \(Int(task.progress * 100))%\n拖动移动日期；两端调整时长；双击编辑")
-        .accessibilityLabel("\(task.title)，\(Day.short(preview.start)) 至 \(Day.short(preview.end))，进度 \(Int(task.progress * 100))%")
+        .help(L("\(task.title)\n\(Day.short(preview.start)) – \(Day.short(preview.end)) · \(Int(task.progress * 100))%\n拖动移动日期；两端调整时长；双击编辑"))
+        .accessibilityLabel(L("\(task.title)，\(Day.short(preview.start)) 至 \(Day.short(preview.end))，进度 \(Int(task.progress * 100))%"))
     }
 
     private func handle() -> some View {
@@ -609,6 +618,7 @@ struct TimelineRow: View {
 }
 
 struct IconButton: View {
+    @ObservedObject private var appLanguage = AppLanguage.shared
     var symbol: String
     var help: String
     var active = false
@@ -621,7 +631,7 @@ struct IconButton: View {
                 .frame(width: 27, height: 27)
                 .background(hover || active ? Palette.inset : Color.clear, in: RoundedRectangle(cornerRadius: 7))
                 .contentShape(Rectangle())
-        }.buttonStyle(.plain).onHover { hover = $0 }.help(help)
+        }.buttonStyle(.plain).onHover { hover = $0 }.help(help).accessibilityLabel(help)
     }
 }
 
