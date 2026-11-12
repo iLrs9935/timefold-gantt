@@ -14,6 +14,7 @@ struct TaskPointerArea: NSViewRepresentable {
     var singleClick: (() -> Void)? = nil
     var change: (TaskDragMode, CGFloat) -> Void = { _, _ in }
     var finish: () -> Void = {}
+    var rangeDrag: ((CGFloat) -> Void)? = nil
     var help = "单击选择；⌘点击多选；Shift点击连续选择；双击编辑任务信息"
 
     final class PointerView: NSView {
@@ -50,7 +51,13 @@ struct TaskPointerArea: NSViewRepresentable {
             dragging = false
         }
         override func mouseDragged(with event: NSEvent) {
-            guard draggable, let origin, let window else { return }
+            guard let origin, let window else { return }
+            if !draggable, let rangeDrag = configuration.rangeDrag {
+                let point = window.convertPoint(toScreen: event.locationInWindow)
+                if abs(point.y - origin.y) >= 3 { dragging = true; rangeDrag(origin.y - point.y) }
+                return
+            }
+            guard draggable else { return }
             let point = window.convertPoint(toScreen: event.locationInWindow)
             let delta = point.x - origin.x
             guard dragging || abs(delta) >= 3 else { return }

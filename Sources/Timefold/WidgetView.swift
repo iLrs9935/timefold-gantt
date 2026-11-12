@@ -32,6 +32,8 @@ struct WidgetView: View {
     @State private var editing: GanttTask?
     @State private var textPlanShown = false
     @State private var renameShown = false
+    @State private var newPlanShown = false
+    @State private var newPlanName = ""
     @State private var projectName = ""
     @State private var helpShown = false
     @State private var widgetWidth: CGFloat = 808
@@ -88,6 +90,7 @@ struct WidgetView: View {
         .onReceive(NotificationCenter.default.publisher(for: .undoGanttEdit)) { _ in store.undo() }
         .onReceive(NotificationCenter.default.publisher(for: .selectAllGanttTasks)) { _ in selection.selectAll(visibleIDs) }
         .onReceive(NotificationCenter.default.publisher(for: .deleteGanttSelection)) { _ in deleteSelected() }
+        .onChange(of: store.activePlanID) { _ in selection.clear() }
         .onChange(of: visibleIDs) { selection.retain(Set($0)) }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             // Trigger fresh date labels after sleep or a date change.
@@ -174,15 +177,33 @@ struct WidgetView: View {
                                 TaskPointerArea(label: "编辑项目名称", select: { _ in }, edit: openProjectRename)
                             }
                             .help("双击修改项目名称")
-                        Button(action: openProjectRename) {
+                        Menu {
+                            ForEach(store.plans) { plan in
+                                Button { store.switchPlan(plan.id) } label: {
+                                    if plan.id == store.activePlanID { Label(plan.project.name, systemImage: "checkmark") }
+                                    else { Text(plan.project.name) }
+                                }
+                            }
+                            Divider()
+                            Button("新建计划…") { newPlanName = ""; newPlanShown = true }
+                            Button("重命名当前计划…", action: openProjectRename)
+                        } label: {
                             Image(systemName: "chevron.down").font(.system(size: 9, weight: .semibold)).foregroundStyle(Palette.muted)
                         }
-                        .buttonStyle(.plain).accessibilityLabel("修改项目名称")
+                        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().accessibilityLabel("切换计划")
                     }
                     if store.project.isExample {
                         Text("示例").font(.system(size: 9, weight: .medium)).foregroundStyle(Palette.accent)
                             .padding(.horizontal, 6).padding(.vertical, 3).background(Palette.accent.opacity(0.08), in: Capsule())
                     }
+                }
+                .popover(isPresented: $newPlanShown) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("新建计划").font(.headline)
+                        TextField("例如：工作、学习、个人项目", text: $newPlanName).textFieldStyle(.roundedBorder)
+                            .onSubmit { createPlan() }
+                        HStack { Spacer(); Button("创建", action: createPlan).disabled(newPlanName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) }
+                    }.padding(20).frame(width: 280)
                 }
                 .popover(isPresented: $renameShown) {
                     VStack(alignment: .leading, spacing: 12) {
@@ -293,7 +314,7 @@ struct WidgetView: View {
                         LazyVStack(spacing: 0) {
                             ForEach(store.visibleTasks) { task in
                                 HStack(spacing: 0) {
-                                    TaskLabel(task: task, toggle: { store.toggle(task) }, select: { select(task, modifiers: $0) }, edit: { editing = task })
+                                    TaskLabel(task: task, toggle: { store.toggle(task) }, select: { select(task, modifiers: $0) }, rangeDrag: { selectRange(task, delta: $0) }, edit: { editing = task })
                                         .frame(width: labelWidth, height: rowHeight)
                                     TimelineRow(task: task, start: store.viewStart, days: store.days,
                                                 selected: selection.ids.contains(task.id), select: { select(task, modifiers: $0) },
@@ -378,6 +399,15 @@ struct WidgetView: View {
         guard !store.hasUnreadableData, editing == nil else { return }
         textPlanShown = true
     }
+    private func createPlan() {
+        guard !newPlanName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        store.createPlan(newPlanName); newPlanShown = false
+    }
+    private func selectRange(_ task: GanttTask, delta: CGFloat) {
+        guard let origin = visibleIDs.firstIndex(of: task.id), !visibleIDs.isEmpty else { return }
+        let target = max(0, min(visibleIDs.count - 1, origin + Int((delta / (rowHeight + 1)).rounded())))
+        selection.select(visibleIDs[target], ordered: visibleIDs, extending: true)
+    }
     private func select(_ task: GanttTask, modifiers: NSEvent.ModifierFlags) {
         selection.select(task.id, ordered: visibleIDs, extending: modifiers.contains(.shift), toggling: modifiers.contains(.command))
     }
@@ -423,6 +453,7 @@ struct TaskLabel: View {
     var task: GanttTask
     var toggle: () -> Void
     var select: (NSEvent.ModifierFlags) -> Void
+    var rangeDrag: (CGFloat) -> Void
     var edit: () -> Void
     var body: some View {
         HStack(spacing: 9) {
@@ -433,7 +464,7 @@ struct TaskLabel: View {
                         Circle().fill(task.tint.color)
                         Image(systemName: "checkmark").font(.system(size: 8, weight: .bold)).foregroundStyle(.white)
                     }
-                }.frame(width: 14, height: 14).padding(.vertical, 10)
+                }.frame(width: 18, height: 18).frame(width: 24, height: 38).contentShape(Rectangle())
             }.buttonStyle(.plain).help(task.isComplete ? "重新打开任务" : "标为完成")
             HStack(spacing: 3) {
                 VStack(alignment: .leading, spacing: 5) {
@@ -447,8 +478,8 @@ struct TaskLabel: View {
                 Text("\(Int((task.progress * 100).rounded()))%").font(.system(size: 10, design: .rounded)).monospacedDigit()
                     .foregroundStyle(Palette.muted).frame(width: 29, alignment: .trailing)
             }
-            .overlay { TaskPointerArea(label: "\(task.title)，\(Day.short(task.start)) 至 \(Day.short(task.end))，进度 \(Int(task.progress * 100))%", select: select, edit: edit) }
-            .help("单击选择，双击编辑 \(task.title)")
+            .overlay { TaskPointerArea(label: "\(task.title)，\(Day.short(task.start)) 至 \(Day.short(task.end))，进度 \(Int(task.progress * 100))%", select: select, edit: edit, rangeDrag: rangeDrag) }
+            .help("单击选择，按住拖过多行可多选；双击编辑 \(task.title)")
         }.padding(.leading, 14).padding(.trailing, 17)
     }
 }

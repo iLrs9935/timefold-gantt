@@ -2,9 +2,25 @@ import AppKit
 import Combine
 import Foundation
 
+struct SavedPlan: Identifiable, Codable, Equatable {
+    var id = UUID()
+    var project: Project
+}
+
+private struct PlanLibrary: Codable {
+    var name: String
+    var tasks: [GanttTask]
+    var isExample: Bool
+    var plans: [SavedPlan]
+    var activePlanID: UUID
+}
+
 @MainActor
 final class ProjectStore: ObservableObject {
     @Published private(set) var project: Project
+    @Published private(set) var plans: [SavedPlan] = []
+    @Published private(set) var activePlanID = UUID()
+    private var planHistories: [UUID: [Project]] = [:]
     @Published private(set) var saveError: String?
     @Published private(set) var canUndo = false
     @Published var pinned: Bool { didSet { defaults.set(pinned, forKey: "pinned") } }
@@ -32,6 +48,18 @@ final class ProjectStore: ObservableObject {
         if FileManager.default.fileExists(atPath: self.fileURL.path) {
             do {
                 project = try Self.read(from: self.fileURL)
+                let data = try Data(contentsOf: self.fileURL)
+                let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+                if object?["plans"] != nil {
+                    let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
+                    let library = try decoder.decode(PlanLibrary.self, from: data)
+                    guard !library.plans.isEmpty, Set(library.plans.map(\.id)).count == library.plans.count,
+                          let active = library.plans.first(where: { $0.id == library.activePlanID }),
+                          library.plans.allSatisfy({ $0.project.tasks.count <= 10_000 && Set($0.project.tasks.map(\.id)).count == $0.project.tasks.count }) else { throw CocoaError(.fileReadCorruptFile) }
+                    plans = library.plans
+                    activePlanID = library.activePlanID
+                    project = active.project
+                } else { plans = [SavedPlan(id: activePlanID, project: project)] }
             } catch {
                 project = Project()
                 hasUnreadableData = true
@@ -41,6 +69,23 @@ final class ProjectStore: ObservableObject {
             project = .example()
             persist()
         }
+    }
+
+    func createPlan(_ name: String) {
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, !hasUnreadableData else { return }
+        planHistories[activePlanID] = history
+        let plan = SavedPlan(project: Project(name: name))
+        plans.append(plan); activePlanID = plan.id; project = plan.project
+        history = []; canUndo = false; today(); persist()
+    }
+    func switchPlan(_ id: UUID) {
+        guard id != activePlanID, !hasUnreadableData, let plan = plans.first(where: { $0.id == id }) else { return }
+        planHistories[activePlanID] = history
+        activePlanID = id; project = plan.project
+        history = planHistories[id] ?? []; canUndo = !history.isEmpty
+        if let first = project.tasks.first { reveal(first) } else { today() }
+        persist()
     }
 
     var visibleTasks: [GanttTask] {
@@ -139,7 +184,11 @@ final class ProjectStore: ObservableObject {
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             encoder.dateEncodingStrategy = .iso8601
-            try encoder.encode(project).write(to: fileURL, options: .atomic)
+            if let index = plans.firstIndex(where: { $0.id == activePlanID }) { plans[index].project = project }
+            else { plans.append(SavedPlan(id: activePlanID, project: project)) }
+            let library = PlanLibrary(name: project.name, tasks: project.tasks, isExample: project.isExample,
+                                      plans: plans, activePlanID: activePlanID)
+            try encoder.encode(library).write(to: fileURL, options: .atomic)
             saveError = nil
         } catch {
             saveError = "保存失败：\(error.localizedDescription)"
