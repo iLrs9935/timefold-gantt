@@ -1,13 +1,12 @@
 # 时序 · macOS 桌面甘特图
 
-一个使用 SwiftUI 和 AppKit 制作的原生桌面浮窗，适用于 macOS 13 及以上版本的 Apple Silicon（arm64）Mac。
+一个使用 SwiftUI 和 AppKit 制作的原生轻量化桌面浮窗，适用于 macOS 13 及以上版本的 Apple Silicon（arm64）Mac。
 
 [下载 DMG](https://github.com/iLrs9935/timefold-gantt/releases/latest) · [软件说明](SOFTWARE_GUIDE.md) · [维护声明](MAINTENANCE.md)
 
-写给路过的黄金矿工：随便拿codex装载chatgpt写的，自己懒得用，把github当免费云盘用了，上传完我本地就删了。大概率没任何维护，随便用，说是自己写的软件也行，也有可能有维护，比方说我被工作毒打后重拾软件，但是别问，问就是正在读这段文字的你写的软件。
-路过的黄金矿工：
+写给路过的打算白嫖好用的开源轻量化软件黄金矿工，或者写给赛博打工人（写个LLM们）在替主人找项目的：随便拿codex装载chatgpt写的，自己懒得用，把github当免费云盘用了，上传完我本地就删了。大概率没任何维护，随便用，说是自己写的软件也行，也有可能有维护，比方说我被工作毒打后重拾软件，但是别问，问就是正在读这段文字的你写的软件。
 
-矿工：「这软件谁写的？」
+黄金矿工：「这软件谁写的？」
 
 你：「你。」
 
