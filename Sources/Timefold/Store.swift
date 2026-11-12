@@ -5,6 +5,7 @@ import Foundation
 struct SavedPlan: Identifiable, Codable, Equatable {
     var id = UUID()
     var project: Project
+    var automaticPlaceholder: Bool? = nil
 }
 
 private struct PlanLibrary: Codable {
@@ -13,6 +14,7 @@ private struct PlanLibrary: Codable {
     var isExample: Bool
     var plans: [SavedPlan]
     var activePlanID: UUID
+    var deletedPlans: [SavedPlan]?
 }
 
 @MainActor
@@ -20,6 +22,8 @@ final class ProjectStore: ObservableObject {
     @Published private(set) var project: Project
     @Published private(set) var plans: [SavedPlan] = []
     @Published private(set) var activePlanID = UUID()
+    @Published private(set) var deletedPlans: [SavedPlan] = []
+    private var lastActionWasPlanDeletion = false
     private var planHistories: [UUID: [Project]] = [:]
     @Published private(set) var saveError: String?
     @Published private(set) var canUndo = false
@@ -56,6 +60,7 @@ final class ProjectStore: ObservableObject {
                     guard !library.plans.isEmpty, Set(library.plans.map(\.id)).count == library.plans.count,
                           let active = library.plans.first(where: { $0.id == library.activePlanID }),
                           library.plans.allSatisfy({ $0.project.tasks.count <= 10_000 && Set($0.project.tasks.map(\.id)).count == $0.project.tasks.count }) else { throw CocoaError(.fileReadCorruptFile) }
+                    deletedPlans = library.deletedPlans ?? []
                     plans = library.plans
                     activePlanID = library.activePlanID
                     project = active.project
@@ -74,6 +79,7 @@ final class ProjectStore: ObservableObject {
     func createPlan(_ name: String) {
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty, !hasUnreadableData else { return }
+        lastActionWasPlanDeletion = false
         planHistories[activePlanID] = history
         let plan = SavedPlan(project: Project(name: name))
         plans.append(plan); activePlanID = plan.id; project = plan.project
@@ -82,8 +88,32 @@ final class ProjectStore: ObservableObject {
     func switchPlan(_ id: UUID) {
         guard id != activePlanID, !hasUnreadableData, let plan = plans.first(where: { $0.id == id }) else { return }
         planHistories[activePlanID] = history
+        lastActionWasPlanDeletion = false
         activePlanID = id; project = plan.project
         history = planHistories[id] ?? []; canUndo = !history.isEmpty
+        if let first = project.tasks.first { reveal(first) } else { today() }
+        persist()
+    }
+
+    func deleteCurrentPlan() {
+        guard !hasUnreadableData else { return }
+        planHistories[activePlanID] = history
+        deletedPlans.append(SavedPlan(id: activePlanID, project: project))
+        plans.removeAll { $0.id == activePlanID }
+        if plans.isEmpty { plans = [SavedPlan(project: Project(), automaticPlaceholder: true)] }
+        activePlanID = plans[0].id; project = plans[0].project
+        history = planHistories[activePlanID] ?? []
+        lastActionWasPlanDeletion = true; canUndo = true
+        today(); persist()
+    }
+    func restoreDeletedPlan() {
+        guard !hasUnreadableData, let plan = deletedPlans.popLast() else { return }
+        planHistories[activePlanID] = history
+        // Remove only untouched, automatically generated empty plans, including after a restart.
+        plans.removeAll { $0.automaticPlaceholder == true && $0.project.tasks.isEmpty }
+        plans.append(plan); activePlanID = plan.id; project = plan.project
+        history = planHistories[plan.id] ?? []
+        lastActionWasPlanDeletion = false; canUndo = !history.isEmpty
         if let first = project.tasks.first { reveal(first) } else { today() }
         persist()
     }
@@ -156,6 +186,7 @@ final class ProjectStore: ObservableObject {
         mutate { $0 = Project() }
     }
     func undo() {
+        if lastActionWasPlanDeletion { restoreDeletedPlan(); return }
         guard let previous = history.popLast() else { return }
         project = previous
         canUndo = !history.isEmpty
@@ -170,6 +201,8 @@ final class ProjectStore: ObservableObject {
         var next = project
         change(&next)
         guard next != project else { return }
+        if let index = plans.firstIndex(where: { $0.id == activePlanID }) { plans[index].automaticPlaceholder = nil }
+        lastActionWasPlanDeletion = false
         history.append(project)
         if history.count > 50 { history.removeFirst() }
         project = next
@@ -187,7 +220,7 @@ final class ProjectStore: ObservableObject {
             if let index = plans.firstIndex(where: { $0.id == activePlanID }) { plans[index].project = project }
             else { plans.append(SavedPlan(id: activePlanID, project: project)) }
             let library = PlanLibrary(name: project.name, tasks: project.tasks, isExample: project.isExample,
-                                      plans: plans, activePlanID: activePlanID)
+                                      plans: plans, activePlanID: activePlanID, deletedPlans: deletedPlans)
             try encoder.encode(library).write(to: fileURL, options: .atomic)
             saveError = nil
         } catch {

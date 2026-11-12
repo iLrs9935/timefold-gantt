@@ -35,17 +35,17 @@ struct TextPlanEditor: View {
                     TextEditor(text: $input).font(.system(size: 13)).scrollContentBackground(.hidden)
                         .focused($inputFocused).accessibilityLabel("排期描述")
                     if input.isEmpty {
-                        Text("明天下午报销，预计两天\n下周一整理检测报告，持续三天，进度30%")
+                        Text("明早报销两三天，然后整理报告一天\n周五下午5点前提交清单，预计两天")
                             .font(.system(size: 13)).foregroundStyle(Palette.muted.opacity(0.75))
                             .padding(.top, 2).padding(.leading, 5).allowsHitTesting(false)
                     }
                 }.frame(height: 105).padding(10).background(Palette.inset, in: RoundedRectangle(cornerRadius: 10))
                 HStack {
-                    Text("一行一项，也可用分号、顿号分隔 · 在此 Mac 解析")
+                    Text("可写多项任务与先后顺序 · 在此 Mac 解析")
                         .font(.system(size: 10)).foregroundStyle(Palette.muted)
                     Spacer()
                     Button("试试示例") {
-                        input = "明天下午报销，预计1-2天\n下周一整理检测报告，持续三天，进度30%\n本月底完成收据，半天"
+                        input = "明早报销两三天，然后整理报告一天\n周五下午5点前提交清单，预计两天\n下月初核对收据，半天"
                         parse()
                     }.buttonStyle(.plain).foregroundStyle(Palette.accent)
                     Button(hasParsed ? "重新解析" : "解析文字", action: parse)
@@ -80,8 +80,8 @@ struct TextPlanEditor: View {
                 }.frame(height: 255)
             } else {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("支持今天、明天、下周几、具体日期、起止范围与持续时长。")
-                    Text("上午、下午和原文会保存在备注中；未写日期或时长时，会在预览中提示采用的安排。")
+                    Text("支持明早、下月初、两三天、具体日期和截止日期。“然后、接着、最后”会接在上一项结束后的次日。")
+                    Text("截止默认包含当天；时刻保存在备注中。日期倒推、时长取整和缺省值都会在预览中提示，可手动调整。")
                 }.font(.system(size: 11)).foregroundStyle(Palette.muted).lineSpacing(4)
                     .frame(maxWidth: .infinity, minHeight: 68, alignment: .leading)
             }

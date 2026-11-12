@@ -17,7 +17,9 @@ struct TextPlanResult {
 enum TextPlanParser {
     private static let digits = #"[0-9零〇一二两三四五六七八九十]+"#
     private static let number = #"(?:-?\d+(?:\.\d+)?|[零〇一二两三四五六七八九十百千]+|半)"#
-    private static let datePattern = #"\d{4}[-/]\d{1,2}[-/]\d{1,2}|(?:\d{4}年)?"# + digits + #"月"# + digits + #"[日号]?|\d{1,2}/\d{1,2}|(?:下个月|下月|这个月|本月)?"# + digits + #"[日号]|大后天|后天|明天|今天|今日|明日|前天|昨天|昨日|"# + number + #"天(?:以后|之后|后)|(?:(?:下下|下|本|这)(?:个)?)?(?:周|星期|礼拜)[一二三四五六日天1-7末]|(?:下下|下|本|这)(?:周|星期)|(?:本|下|这)?(?:月底|月末)|(?:本月|下月|下个月)(?:底|末)"#
+    private static let periodPattern = #"上午|下午|早上|早晨|中午|晚上|傍晚|全天"#
+    private static let clockPattern = #"(?:(?:上午|下午|早上|早晨|中午|晚上|傍晚)\s*)?\d{1,2}(?::\d{2}|点(?:\d{1,2}分?|半)?)(?:\s*[-到至]\s*\d{1,2}(?::\d{2}|点(?:\d{1,2}分?|半)?))?"#
+    private static let datePattern = #"\d{4}[-/.]\d{1,2}[-/.]\d{1,2}|(?:\d{4}年)?"# + digits + #"月"# + digits + #"[日号]?|\d{1,2}[/.]\d{1,2}|(?:下个月|下月|这个月|本月)?"# + digits + #"[日号]|大后天|后天|明天|今天|今日|明日|前天|昨天|昨日|"# + number + #"天(?:以后|之后|后)|(?:(?:下下|下|本|这)(?:个)?)?(?:周|星期|礼拜)[一二三四五六日天1-7末]|(?:下下|下|本|这)(?:周|星期)|(?:本|下|这)?(?:月底|月末|月初)|(?:本月|下月|下个月|这个月)(?:初|底|末)"#
 
     private struct Token {
         var match: NSTextCheckingResult
@@ -28,7 +30,13 @@ enum TextPlanParser {
             return range.location == NSNotFound ? "" : ns.substring(with: range)
         }
     }
-    private struct Context { var date: Date; var period: String }
+    private struct Context {
+        var date: Date
+        var period: String
+        var deadline: Date? = nil
+        var reason: String? = nil
+        var isHeading = false
+    }
     private enum ParseError: Error { case invalid(String) }
 
     static func parse(_ input: String, reference: Date = Date()) -> TextPlanResult {
@@ -37,25 +45,26 @@ enum TextPlanParser {
             result.issues = ["文字过长，请分成每次不超过 20,000 字的几段。"]
             return result
         }
-        let normalized = input.folding(options: .widthInsensitive, locale: Locale(identifier: "zh_CN"))
-        // A comma before another explicit date starts a new task; other commas describe the current task.
-        let separated = replacing(#"[,，](?=\s*(?:今天|明天|后天|大后天|(?:下下|下|本|这)?(?:周|星期|礼拜)[一二三四五六日天]|\d{1,2}[月日号]))"#, in: normalized, with: "\n")
+        let normalized = input
         var heading: Context?
         var count = 0
-        for rawLine in separated.components(separatedBy: CharacterSet(charactersIn: "\n；;")) {
-            let line = replacing(#"^\s*(?:[-*•]\s+|\d+[、.．)）]\s*)"#, in: rawLine, with: "")
-            // Keep enumeration punctuation inside a note intact.
-            let noteStart = first(#"备注\s*[:：]"#, in: line)?.match.range.location
+        for rawLine in normalized.components(separatedBy: .newlines) {
+            // A decimal date such as 11.15 is not a numbered-list prefix.
+            let line = replacing(#"^\s*(?:[-*•]\s+|\d+[、)）]\s*|\d+[.．](?!\d)\s*)"#, in: rawLine, with: "")
+            let noteStart = first(#"(?:备注|说明|补充)\s*[:：]"#, in: line)?.match.range.location
             let body = noteStart.map { (line as NSString).substring(to: $0) } ?? line
             let note = noteStart.map { (line as NSString).substring(from: $0) } ?? ""
-            let parts = body.components(separatedBy: "、")
+            let parts = splitTasks(body)
             var context = heading
             for (index, part) in parts.enumerated() {
-                let source = (part + (index == parts.count - 1 ? note : "")).trimmingCharacters(in: .whitespacesAndNewlines)
+                let source = (part.text + (index == parts.count - 1 ? note : "")).trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !source.isEmpty else { continue }
                 count += 1
                 guard count <= 200 else { result.issues.append("每次最多解析 200 条，请将剩余文字分批输入。"); return result }
                 do {
+                    if part.sequential, let previous = result.drafts.last {
+                        context = Context(date: Day.add(1, to: previous.task.end), period: "", reason: "按上一项结束后的次日安排。")
+                    }
                     let parsed = try parseTask(source, reference: Day.start(reference), context: context, tintIndex: result.drafts.count)
                     context = parsed.context
                     if let draft = parsed.draft { result.drafts.append(draft) }
@@ -72,27 +81,67 @@ enum TextPlanParser {
         var text = source
         var notes: [String] = []
         var warnings: [String] = []
-        if let token = first(#"备注\s*[:：]\s*(.*)$"#, in: text) {
+        if let token = first(#"(?:备注|说明|补充)\s*[:：]\s*(.*)$"#, in: text) {
             notes.append(token.group(1)); remove(token, from: &text)
+        }
+        text = colloquial(text)
+        let originalClock = matches(clockPattern, in: text).first { token in
+            let prefix = (text as NSString).substring(to: token.match.range.location).trimmingCharacters(in: .whitespaces)
+            let lastDate = matches(datePattern, in: prefix).last
+            return token.text.contains(":") || first(periodPattern, in: token.text) != nil || prefix.isEmpty ||
+                lastDate.map { NSMaxRange($0.match.range) == (prefix as NSString).length } == true ||
+                first(#"(?:时间|定在|安排在|在)\s*[:：]?\s*$"#, in: prefix) != nil
+        }?.text
+        let originalPeriod = first(periodPattern, in: text)?.text ?? ""
+        if let originalClock {
+            for part in matches(#"(\d{1,2})(?::(\d{2})|点(?:(\d{1,2})分?|半)?)"#, in: originalClock) {
+                let minutes = Int(part.group(2).isEmpty ? part.group(3) : part.group(2)) ?? 0
+                guard Int(part.group(1))! < 24, minutes < 60 else { throw ParseError.invalid("时间“\(originalClock)”无效，请检查小时和分钟。") }
+            }
         }
 
         let tokens = matches(datePattern, in: text).filter { token in
             // “持续三日” is a duration; a bare “三日” is a calendar date.
             let prefix = (text as NSString).substring(to: token.match.range.location)
             let isDayOnly = first(#"^"# + digits + #"日$"#, in: token.text) != nil
-            return !(isDayOnly && first(#"(?:持续|为期|预计|估计|大约|大概|耗时|用时|需要|共)\s*$"#, in: prefix) != nil)
+            return !(isDayOnly && first(#"(?:持续|为期|预计|估计|大约|大概|耗时|用时|需要|共)\s*(?:"# + number + #"\s*[-至到]\s*)?$"#, in: prefix) != nil)
         }
-        let start: Date
+        var start: Date
         var explicitEnd: Date?
+        var deadline: Date?
+        var hasStart = false
         if let token = tokens.first {
             let leading = (text as NSString).substring(to: token.match.range.location)
-            start = try resolveDate(token.text, reference: reference, base: nil)
-            var consumed = [token]
-            if tokens.count > 1 {
+            let clause = deadlineClause(token, in: text)
+            let date = try resolveDate(token.text, reference: reference, base: nil)
+            if clause.isDeadline {
+                deadline = date
+                hasStart = context?.isHeading == true
+                start = hasStart ? context!.date : min(reference, date)
+                guard start <= date else { throw ParseError.invalid("截止日期早于开始日期，请检查日期。") }
+                notes.append("截止：\(Day.short(date))（含当天）")
+                warnings.append("按截止日包含当天安排，请确认。")
+                if date < reference { warnings.append("截止日期已过去，请检查是否需要改到下周或下月。") }
+                text = (text as NSString).replacingCharacters(in: clause.range, with: "")
+                if tokens.count > 1 { warnings.append("出现多个日期，请检查任务的开始与截止日期。") }
+            } else {
+              start = date; hasStart = true
+              var consumed = [token.match.range]
+              if tokens.count > 1 {
                 let next = tokens[1]
+                let nextClause = deadlineClause(next, in: text)
                 let gap = (text as NSString).substring(with: NSRange(location: NSMaxRange(token.match.range), length: next.match.range.location - NSMaxRange(token.match.range)))
                     .trimmingCharacters(in: .whitespaces)
-                if ["至", "到", "-", "—", "–", "~", "～"].contains(gap) {
+                if nextClause.isDeadline {
+                    deadline = try resolveDate(next.text, reference: reference, base: start)
+                    guard deadline! >= start else { throw ParseError.invalid("截止日期早于开始日期，请检查日期。") }
+                    notes.append("截止：\(Day.short(deadline!))（含当天）")
+                    warnings.append("按截止日包含当天安排，请确认。")
+                    if first(#"^(?:起|开始)?\s*[,，]?\s*(?:至|到)$"#, in: gap) != nil {
+                        text = (text as NSString).replacingCharacters(in: NSRange(location: token.match.range.location, length: NSMaxRange(nextClause.range) - token.match.range.location), with: "")
+                        consumed.removeAll()
+                    } else { consumed.append(nextClause.range) }
+                } else if ["至", "到", "-", "—", "–", "~", "～"].contains(gap) || first(#"^(?:起|开始)?\s*[,，]?\s*(?:至|到)$"#, in: gap) != nil {
                     explicitEnd = try resolveDate(next.text, reference: reference, base: start)
                     guard explicitEnd! >= start else { throw ParseError.invalid("结束日期早于开始日期，请写清起止日期。") }
                     if next.text.range(of: #"^[0-9一二三四五六七八九十]+[日号]$"#, options: .regularExpression) != nil,
@@ -103,22 +152,26 @@ enum TextPlanParser {
                     text = (text as NSString).replacingCharacters(in: NSRange(location: token.match.range.location, length: NSMaxRange(next.match.range) - token.match.range.location), with: "")
                     consumed.removeAll()
                 } else { warnings.append("出现多个日期，暂用第一个作为开始日期，请确认。") }
+              }
+              for range in consumed.sorted(by: { $0.location > $1.location }) { text = (text as NSString).replacingCharacters(in: range, with: "") }
             }
-            for token in consumed.reversed() { remove(token, from: &text) }
             if ["从", "在", "于", "请"].contains(leading.trimmingCharacters(in: .whitespaces)) { text = String(text.dropFirst(leading.count)) }
             if ["下周", "下下周", "本周", "这周", "下星期", "本星期"].contains(token.text) {
                 warnings.append("没有指定星期几，按该周周一安排。")
             }
         } else if let context {
             start = context.date
-            warnings.append("沿用上一项的日期 \(Day.short(start))。")
+            deadline = context.deadline
+            warnings.append(context.reason ?? (deadline == nil ? "沿用上一项的日期 \(Day.short(start))。" : "沿用上一项的截止日期 \(Day.short(deadline!))（含当天）。"))
         } else {
             start = reference
             warnings.append("没有写开始日期，先安排在今天。")
         }
+        if tokens.isEmpty, let reason = context?.reason { notes.append("排期说明：\(reason)") }
+        if tokens.isEmpty, let deadline { notes.append("截止：\(Day.short(deadline))（含当天）") }
 
-        var period = tokens.isEmpty ? (context?.period ?? "") : ""
-        if let token = first(#"上午|下午|早上|早晨|中午|晚上|傍晚|全天"#, in: text) {
+        var period = originalPeriod.isEmpty && tokens.isEmpty ? (context?.period ?? "") : originalPeriod
+        if let token = first(periodPattern, in: text) {
             period = token.text; remove(token, from: &text)
         }
         if !period.isEmpty {
@@ -146,7 +199,7 @@ enum TextPlanParser {
             if !token.group(2).isEmpty { warnings.append("时长为范围，先按上限 \(duration)\(workdays ? " 个工作日" : " 天")安排。") }
             if days != days.rounded() || unit == "小时" { warnings.append("甘特图按整天显示，估时向上取整，原估时保存在备注中。") }
             remove(token, from: &text)
-        } else if explicitEnd == nil { warnings.append("没有写时长，先安排 1 天。") }
+        } else if explicitEnd == nil && deadline == nil { warnings.append("没有写时长，先安排 1 天。") }
 
         var end = Day.add(duration - 1, to: start)
         if workdays {
@@ -162,6 +215,34 @@ enum TextPlanParser {
         if let explicitEnd {
             if explicitDuration && explicitEnd != end { warnings.append("日期范围与估时不同，已优先采用明确的起止日期。") }
             end = explicitEnd
+        }
+        if let deadline {
+            guard Day.distance(start, deadline) <= 3650 else { throw ParseError.invalid("日期范围超过 3,650 天，请缩短排期。") }
+            if !hasStart && explicitDuration {
+                start = deadline
+                if workdays {
+                    var remaining = duration
+                    while true {
+                        if !Day.isWeekend(start) { remaining -= 1 }
+                        if remaining == 0 { break }
+                        start = Day.add(-1, to: start)
+                    }
+                } else { start = Day.add(-(duration - 1), to: deadline) }
+                warnings.append("根据估时从截止日倒推开始日期。")
+                if start < reference { warnings.append("倒推的开始日期早于今天，请确认是否需要调整估时。") }
+            } else if explicitDuration && end != deadline {
+                warnings.append("截止日期与估时不同，已优先保留明确的日期范围。")
+            }
+            if !hasStart && !explicitDuration {
+                warnings.append(deadline < reference ? "截止日期已过，未写估时时暂排在截止当天。" : "只给出截止日期，先从今天安排。")
+            }
+            end = deadline
+        }
+        if let time = originalClock {
+            notes.append("时间：\(time)")
+            warnings.append("按天显示，具体时间保存在备注中。")
+            let bareTime = replacing(periodPattern, in: time, with: "").trimmingCharacters(in: .whitespaces)
+            if let token = matches(clockPattern, in: text).first(where: { $0.text == time || $0.text == bareTime }) { remove(token, from: &text) }
         }
 
         var progress = 0.0
@@ -191,10 +272,10 @@ enum TextPlanParser {
             warnings.append("包含重复安排，本次只创建一次任务；重复要求保留在原文中。")
         }
         let title = cleanTitle(text)
-        let newContext = Context(date: start, period: period)
+        var newContext = Context(date: start, period: period, deadline: deadline)
         if title.isEmpty {
             // A date-only heading applies to the following lines, without creating an empty task.
-            if !tokens.isEmpty && !explicitDuration && explicitEnd == nil { return (nil, newContext) }
+            if !tokens.isEmpty && !explicitDuration && explicitEnd == nil { newContext.isHeading = true; return (nil, newContext) }
             throw ParseError.invalid("缺少任务名称，请补上要做的事情。")
         }
         if title.count > 300 { throw ParseError.invalid("任务名称过长，请将补充说明放在“备注：”之后。") }
@@ -227,7 +308,11 @@ enum TextPlanParser {
             let offset = text.hasPrefix("下") ? 2 : 1
             return Day.add(-1, to: calendar.date(byAdding: .month, value: offset, to: firstDay)!)
         }
-        if let token = first(#"^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$"#, in: text) {
+        if text.contains("月初") {
+            let firstDay = try checkedDate(year: calendar.component(.year, from: reference), month: calendar.component(.month, from: reference), day: 1, source: text)
+            return text.hasPrefix("下") ? calendar.date(byAdding: .month, value: 1, to: firstDay)! : firstDay
+        }
+        if let token = first(#"^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$"#, in: text) {
             return try checkedDate(year: Int(token.group(1))!, month: Int(token.group(2))!, day: Int(token.group(3))!, source: text)
         }
         if let token = first(#"^(?:(\d{4})年)?("# + digits + #")月("# + digits + #")[日号]?$"#, in: text) {
@@ -237,7 +322,7 @@ enum TextPlanParser {
             if base != nil && !explicitYear && targetMonth < month { year += 1 }
             return try checkedDate(year: year, month: targetMonth, day: integer(token.group(3)) ?? 0, source: text)
         }
-        if let token = first(#"^(\d{1,2})/(\d{1,2})$"#, in: text) {
+        if let token = first(#"^(\d{1,2})[/.](\d{1,2})$"#, in: text) {
             let targetMonth = Int(token.group(1))!
             if base != nil && targetMonth < month { year += 1 }
             return try checkedDate(year: year, month: targetMonth, day: Int(token.group(2))!, source: text)
@@ -285,6 +370,59 @@ enum TextPlanParser {
     private static func integer(_ text: String) -> Int? {
         guard let value = numeric(text), value >= 0, value <= 9999, value == value.rounded() else { return nil }
         return Int(value)
+    }
+
+    private static func colloquial(_ source: String) -> String {
+        var text = source.folding(options: .widthInsensitive, locale: Locale(identifier: "zh_CN"))
+        let aliases = ["今早": "今天早上", "今晨": "今天早上", "今晚": "今天晚上", "明早": "明天早上", "明晚": "明天晚上", "后晚": "后天晚上"]
+        for (word, expanded) in aliases { text = text.replacingOccurrences(of: word, with: expanded) }
+        for token in matches(#"(今天|明天|后天|早上|早晨|上午|中午|下午|晚上|傍晚)\s*("# + digits + #")点"#, in: text).reversed() {
+            if let hour = integer(token.group(2)) {
+                text = (text as NSString).replacingCharacters(in: token.match.range, with: "\(token.group(1))\(hour)点")
+            }
+        }
+        for (word, expanded) in ["一两": "1-2", "两三": "2-3", "三四": "3-4", "四五": "4-5", "五六": "5-6", "六七": "6-7", "七八": "7-8", "八九": "8-9"] {
+            text = replacing(word + #"(?=个?(?:工作日|天|日|周|星期|小时))"#, in: text, with: expanded)
+        }
+        for token in matches(#"("# + number + #")个半(小时|天|周|星期)"#, in: text).reversed() {
+            if let value = numeric(token.group(1)), value > 0, value <= 3650 {
+                text = (text as NSString).replacingCharacters(in: token.match.range, with: "\(value + 0.5)\(token.group(2))")
+            }
+        }
+        text = replacing(#"("# + number + #")个(小时|周|星期)"#, in: text, with: "$1$2")
+        text = replacing(#"(?<![0-9./-])("# + digits + #")\s*[-—–至到]\s*("# + digits + #")([号日])"#, in: text, with: "$1日到$2$3")
+        return text
+    }
+
+    private static func splitTasks(_ body: String) -> [(text: String, sequential: Bool)] {
+        let parallel = "\u{1E}", sequential = "\u{1F}"
+        let duration = number + #"(?:\s*[-至到]\s*"# + number + #")?\s*(?:个?工作日|天|小时|周|星期)(?:半)?"#
+        var text = replacing(#"("# + duration + #")\s*(?:和|以及|并且|并)(?=\p{Han})"#, in: body, with: "$1" + parallel)
+        text = replacing(#"("# + duration + #")[,，](?!\s*(?:进度|已完成|备注|颜色|预计|估计|耗时|用时|持续|时长))(?=[^,，；;]*"# + duration + #")"#, in: text, with: "$1" + parallel)
+        text = replacing(#"[,，]?\s*(?:然后|接着|最后)\s*|[,，]\s*再\s*"#, in: text, with: sequential)
+        text = replacing(#"[,，]\s*(?:另外|还有|同时|并且)\s*"#, in: text, with: parallel)
+        text = replacing(#"[,，](?=\s*(?:"# + datePattern + #"|今早|今晨|今晚|明早|明晚|后晚|截止|截至|最迟|不晚于))"#, in: text, with: parallel)
+        for separator in ["、", ";", "；"] { text = text.replacingOccurrences(of: separator, with: parallel) }
+        var parts: [(text: String, sequential: Bool)] = []
+        var value = "", follows = false
+        for char in text {
+            if char == "\u{1E}" || char == "\u{1F}" {
+                if !value.trimmingCharacters(in: .whitespaces).isEmpty { parts.append((value, follows)) }
+                value = ""; follows = char == "\u{1F}"
+            } else { value.append(char) }
+        }
+        if !value.trimmingCharacters(in: .whitespaces).isEmpty { parts.append((value, follows)) }
+        return parts
+    }
+
+    private static func deadlineClause(_ token: Token, in text: String) -> (isDeadline: Bool, range: NSRange) {
+        let prefix = (text as NSString).substring(to: token.match.range.location)
+        let tail = (text as NSString).substring(from: NSMaxRange(token.match.range))
+        let leading = first(#"(?:在)?(?:截止到?|截至|最迟(?:在)?|不晚于)\s*$"#, in: prefix)
+        let trailing = first(#"^\s*(?:(?:"# + periodPattern + #")\s*)?(?:"# + clockPattern + #")?\s*(?:之前|以前|前|为止)"#, in: tail)
+        let start = leading?.match.range.location ?? token.match.range.location
+        let end = NSMaxRange(token.match.range) + (trailing.map { NSMaxRange($0.match.range) } ?? 0)
+        return (leading != nil || trailing != nil, NSRange(location: start, length: end - start))
     }
 
     private static func cleanTitle(_ value: String) -> String {

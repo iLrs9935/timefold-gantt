@@ -147,6 +147,28 @@ struct ModelChecks {
         legacyStore.switchPlan(legacyStore.plans[0].id)
         try expect(legacyStore.project.tasks == [saved] && legacyStore.project.name == "旧计划", "迁移后旧数据完整保留")
         print("✓ 多计划切换、独立撤销、重启与旧数据迁移")
-        print("全部 15 组检查通过。")
+        let beforeDeletion = planReopened.project
+        planReopened.deleteCurrentPlan()
+        try expect(!planReopened.plans.contains { $0.id == studyID } && planReopened.deletedPlans.last?.project == beforeDeletion, "删除计划保留可恢复数据")
+        planReopened.undo()
+        try expect(planReopened.activePlanID == studyID && planReopened.project == beforeDeletion, "撤销删除恢复计划及任务")
+        planReopened.deleteCurrentPlan()
+        let deletionReopened = ProjectStore(fileURL: planURL, defaults: defaults)
+        deletionReopened.restoreDeletedPlan()
+        try expect(deletionReopened.project == beforeDeletion, "重启后仍能恢复被删除计划")
+        while deletionReopened.plans.count > 1 { deletionReopened.deleteCurrentPlan() }
+        let lastPlanBeforeDeletion = deletionReopened.project
+        deletionReopened.deleteCurrentPlan()
+        try expect(deletionReopened.plans.count == 1 && deletionReopened.project.tasks.isEmpty, "删除最后一个计划时保留可用空计划")
+        let placeholderReopened = ProjectStore(fileURL: planURL, defaults: defaults)
+        placeholderReopened.restoreDeletedPlan()
+        try expect(placeholderReopened.plans.count == 1 && placeholderReopened.project == lastPlanBeforeDeletion, "重启后恢复最后一个计划，不得留下多余的自动空计划")
+        placeholderReopened.deleteCurrentPlan()
+        placeholderReopened.rename("已使用的新计划")
+        placeholderReopened.restoreDeletedPlan()
+        try expect(placeholderReopened.plans.count == 2 && placeholderReopened.plans.contains { $0.project.name == "已使用的新计划" }, "用户已修改的空计划不得被恢复操作移除")
+        print("✓ 计划删除、撤销、重启恢复与删除最后一项")
+        try checkColloquialPlans()
+        print("全部 19 组检查通过。")
     }
 }

@@ -170,28 +170,27 @@ struct WidgetView: View {
         HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
-                    HStack(spacing: 7) {
-                        Text(store.project.name).font(.system(size: 22, weight: .semibold))
-                            .lineLimit(1).truncationMode(.tail)
-                            .overlay {
-                                TaskPointerArea(label: "编辑项目名称", select: { _ in }, edit: openProjectRename)
+                    Menu {
+                        ForEach(store.plans) { plan in
+                            Button { store.switchPlan(plan.id) } label: {
+                                if plan.id == store.activePlanID { Label(plan.project.name, systemImage: "checkmark") }
+                                else { Text(plan.project.name) }
                             }
-                            .help("双击修改项目名称")
-                        Menu {
-                            ForEach(store.plans) { plan in
-                                Button { store.switchPlan(plan.id) } label: {
-                                    if plan.id == store.activePlanID { Label(plan.project.name, systemImage: "checkmark") }
-                                    else { Text(plan.project.name) }
-                                }
-                            }
-                            Divider()
-                            Button("新建计划…") { newPlanName = ""; newPlanShown = true }
-                            Button("重命名当前计划…", action: openProjectRename)
-                        } label: {
-                            Image(systemName: "chevron.down").font(.system(size: 9, weight: .semibold)).foregroundStyle(Palette.muted)
                         }
-                        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().accessibilityLabel("切换计划")
-                    }
+                        Divider()
+                        Button("新建计划…") { newPlanName = ""; newPlanShown = true }
+                        Button("重命名当前计划…", action: openProjectRename)
+                        Button("删除当前计划", role: .destructive) { store.deleteCurrentPlan() }
+                        if !store.deletedPlans.isEmpty {
+                            Button("恢复最近删除的计划") { store.restoreDeletedPlan() }
+                        }
+                    } label: {
+                        HStack(spacing: 7) {
+                            Text(store.project.name).font(.system(size: 22, weight: .semibold)).lineLimit(1)
+                            Image(systemName: "chevron.down").font(.system(size: 9, weight: .semibold))
+                        }.padding(.vertical, 3).contentShape(Rectangle())
+                    }.menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize(horizontal: false, vertical: true)
+                        .accessibilityLabel("切换计划").help("点击名称切换、新建、重命名或删除计划")
                     if store.project.isExample {
                         Text("示例").font(.system(size: 9, weight: .medium)).foregroundStyle(Palette.accent)
                             .padding(.horizontal, 6).padding(.vertical, 3).background(Palette.accent.opacity(0.08), in: Capsule())
@@ -370,6 +369,9 @@ struct WidgetView: View {
             } else {
                 Image(systemName: "checkmark.shield").font(.system(size: 10))
                 Text("\(store.project.tasks.count) 个任务 · 保存在此 Mac")
+            }
+            if !store.deletedPlans.isEmpty {
+                Button("撤销删除计划") { store.restoreDeletedPlan() }.buttonStyle(.plain).foregroundStyle(Palette.accent)
             }
             if store.canUndo {
                 Button("撤销") { store.undo() }.buttonStyle(.plain).foregroundStyle(Palette.accent).padding(.leading, 7)
