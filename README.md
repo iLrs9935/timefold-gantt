@@ -4,7 +4,7 @@
 
 [下载 DMG](https://github.com/iLrs9935/timefold-gantt/releases/latest) · [软件说明](SOFTWARE_GUIDE.md) · [维护声明](MAINTENANCE.md)
 
-随便写的，自己懒得用，把github当免费云盘用了，上传完我本地就删了。大概率没任何维护，随便用，说是自己写的软件也行
+随便拿codex装载chatgpt写的，自己懒得用，把github当免费云盘用了，上传完我本地就删了。大概率没任何维护，随便用，说是自己写的软件也行，也有可能有维护，比方说我被工作毒打后重拾软件，但是别问，问就是正在读这段文字的你写的软件。
 
 ## 看看界面
 
@@ -18,7 +18,7 @@
 
 ## 下载与安装
 
-从本仓库 Releases 下载 `Timefold-1.4.0-macOS-arm64.dmg`，打开后把「时序.app」拖入 Applications 文件夹，再从应用程序中打开。弹出磁盘映像后，安装的应用仍可独立运行。
+从本仓库 Releases 下载 `Timefold-某个版本-macOS-arm64.dmg`，打开后把「时序.app」拖入 Applications 文件夹，再从应用程序中打开。弹出磁盘映像后，安装的应用仍可独立运行。
 
 本版使用临时签名，未使用 Apple Developer ID 签名和公证。macOS 可能提示无法验证开发者；请先确认下载来源，并核对随发布提供的 SHA-256 校验文件。
 
