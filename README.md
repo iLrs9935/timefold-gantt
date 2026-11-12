@@ -2,6 +2,22 @@
 
 一个使用 SwiftUI 和 AppKit 制作的原生桌面浮窗，适用于 macOS 13 及以上版本的 Apple Silicon（arm64）Mac。
 
+[下载 DMG](https://github.com/iLrs9935/timefold-gantt/releases/latest) · [软件说明](SOFTWARE_GUIDE.md) · [维护声明](MAINTENANCE.md)
+
+随手写了个 macOS 桌面甘特图，做得还挺好看，就是写完发现自己也懒得用，更懒得维护。干脆把 GitHub 当免费云盘，上传留个档，本地就准备删了。
+
+软件随便用，源码随便改，说是自己写的也行。大概率没后续维护，遇到问题建议直接 Fork，自行发挥。
+
+## 看看界面
+
+以下为示例项目的实际界面截图。
+
+![浅色外观：桌面甘特图](docs/images/gantt-light.png)
+
+| 深色外观 | 中文文字排期 |
+| --- | --- |
+| ![深色甘特图](docs/images/gantt-dark.png) | ![中文描述解析为任务预览](docs/images/text-scheduling.png) |
+
 ## 下载与安装
 
 从本仓库 Releases 下载 `Timefold-1.3.0-macOS-arm64.dmg`，打开后把「时序.app」拖入 Applications 文件夹，再从应用程序中打开。弹出磁盘映像后，安装的应用仍可独立运行。
@@ -10,7 +26,7 @@
 
 ## 关于维护
 
-随便写的，自己懒得用，把github当免费云盘用了。大概率没任何维护，随便用，说是自己写的软件也行
+没有支持，没有路线图。想继续折腾，建议直接 Fork。
 
 完整态度见 [维护声明](MAINTENANCE.md)，使用许可见 [LICENSE](LICENSE)。
 

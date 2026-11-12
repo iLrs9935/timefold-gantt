@@ -16,3 +16,15 @@
 ## 使用与维护
 
 详见软件说明和维护声明。许可随便，支持没有，路线图无。建议直接 Fork。
+
+## 随便说两句
+
+随手写了个 macOS 桌面甘特图，做得还挺好看，就是写完发现自己也懒得用，更懒得维护。干脆把 GitHub 当免费云盘，上传留个档，本地就准备删了。
+
+软件随便用，源码随便改，说是自己写的也行。大概率没后续维护，遇到问题建议直接 Fork，自行发挥。
+
+## 软件截图
+
+![浅色甘特图](https://raw.githubusercontent.com/iLrs9935/timefold-gantt/main/docs/images/gantt-light.png)
+
+[深色外观](https://github.com/iLrs9935/timefold-gantt/blob/main/docs/images/gantt-dark.png) · [文字排期预览](https://github.com/iLrs9935/timefold-gantt/blob/main/docs/images/text-scheduling.png)
